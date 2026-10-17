@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Box3, Shape, DoubleSide, PerspectiveCamera, Vector3 } from 'three';
+import { Box3, Shape, DoubleSide, PerspectiveCamera, Vector3, type Texture } from 'three';
 import { buildSolidWallModel, WALL_CAP_REACH_M, type Project, type Room } from '@roompilot/domain';
 import { ROOM_COLORS } from './PlanCanvas';
 import OpeningMeshes from './OpeningMeshes';
@@ -11,12 +11,15 @@ import SceneEnvironment from './SceneEnvironment';
 import { Sun, Moon, Clock3 } from 'lucide-react';
 import { useOutdoorEnvironment } from '../use-outdoor-environment';
 import { useInterface } from '../i18n';
+import FurnishingMeshes from './FurnishingMeshes';
+import { createWoodFloorTexture } from './wood-floor';
 
 type SceneBounds = [number, number, number, number, number, number];
 
-function CameraControls({ bounds }: { bounds: SceneBounds }) {
+function CameraControls({ bounds, viewKey }: { bounds: SceneBounds; viewKey: string }) {
   const { camera, gl, size: viewport } = useThree();
   const controlRef = useRef<OrbitControls | null>(null);
+  const previousView = useRef('apartment');
   useEffect(() => {
     const controls = new OrbitControls(camera, gl.domElement);
     controls.enableDamping = true; controls.maxPolarAngle = Math.PI / 2.05;
@@ -30,7 +33,8 @@ function CameraControls({ bounds }: { bounds: SceneBounds }) {
     const box = new Box3(new Vector3(minX, minY, minZ), new Vector3(maxX, maxY, maxZ)).expandByScalar(.12);
     const center = box.getCenter(new Vector3());
     // Retain the user's orbit direction when the viewport or model dimensions change.
-    const direction = camera.position.clone().sub(controls.target).normalize();
+    const direction = previousView.current === viewKey ? camera.position.clone().sub(controls.target).normalize() : new Vector3(-.35, 1.6, viewKey === 'demo-living' ? .8 : -.8).normalize();
+    previousView.current = viewKey;
     const right = new Vector3().crossVectors(camera.up, direction).normalize();
     const up = new Vector3().crossVectors(direction, right).normalize();
     const tanVertical = Math.tan(camera.fov * Math.PI / 360);
@@ -49,19 +53,19 @@ function CameraControls({ bounds }: { bounds: SceneBounds }) {
     camera.near = Math.min(.1, distance / 100);
     camera.far = Math.max(100, distance + box.getSize(new Vector3()).length() * 10);
     camera.updateProjectionMatrix(); controls.update();
-  }, [camera, viewport.width, viewport.height, minX, minY, minZ, maxX, maxY, maxZ]);
+  }, [camera, viewport.width, viewport.height, minX, minY, minZ, maxX, maxY, maxZ, viewKey]);
   useFrame(() => controlRef.current?.update());
   return null;
 }
 
-function RoomVolume({ room, scale, origin, color, selected, onSelect }: {
-  room: Room; scale: number; origin: [number, number]; color: string; selected: boolean; onSelect: () => void;
+function RoomVolume({ room, scale, origin, color, selected, onSelect, floorTexture }: {
+  room: Room; scale: number; origin: [number, number]; color: string; selected: boolean; onSelect: () => void; floorTexture?: Texture;
 }) {
   const points = useMemo(() => room.polygon.map(point => ({ x: point.x * scale - origin[0], z: point.y * scale - origin[1] })), [room.polygon, scale, origin]);
   const shape = useMemo(() => { const outline = new Shape(); points.forEach((point, i) => { if (i === 0) outline.moveTo(point.x, -point.z); else outline.lineTo(point.x, -point.z); }); outline.closePath(); return outline; }, [points]);
   return <group onClick={event => { event.stopPropagation(); onSelect(); }}>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, .015, 0]} receiveShadow>
-      <shapeGeometry args={[shape]} /><meshStandardMaterial color={color} emissive={selected ? '#496b51' : '#000000'} emissiveIntensity={.22} side={DoubleSide} roughness={.85} />
+      <shapeGeometry args={[shape]} /><meshStandardMaterial map={floorTexture ?? null} color={floorTexture ? '#ffffff' : color} emissive={selected ? '#496b51' : '#000000'} emissiveIntensity={floorTexture ? .05 : .22} side={DoubleSide} roughness={.85} />
     </mesh>
   </group>;
 }
@@ -69,27 +73,40 @@ function RoomVolume({ room, scale, origin, color, selected, onSelect }: {
 export default function RoomScene({ project, selectedId, onSelect, selectedZoneId = null, onZoneSelect = () => {} }: { project: Project; selectedId: string | null; onSelect: (id: string) => void; selectedZoneId?: string | null; onZoneSelect?: (id: string) => void }) {
   const { t } = useInterface();
   const { mode, changeMode, solar, pending } = useOutdoorEnvironment();
+  const [furnished, setFurnished] = useState(true), [previewLights, setPreviewLights] = useState(true);
+  const hasFurnishings = project.sceneObjects.length > 0;
+  const [viewScope, setViewScope] = useState('apartment');
+  const woodTexture = useMemo(createWoodFloorTexture, []);
+  useEffect(() => () => woodTexture.dispose(), [woodTexture]);
   const wallModel = useMemo(() => buildSolidWallModel(project), [project.rooms, project.openings, project.calibration, project.ceilingHeightM]);
   const scale = project.calibration!.metresPerPixel;
   const width = project.source.width * scale, depth = project.source.height * scale;
   const size = Math.max(width, depth, 5);
   const origin = useMemo<[number, number]>(() => [width / 2, depth / 2], [width, depth]);
-  const vertices = project.rooms.flatMap(room => room.polygon);
+  const focusZone = project.zones.find(zone => zone.id === viewScope);
+  const vertices = focusZone ? focusZone.polygon : project.rooms.flatMap(room => room.polygon);
   const bounds: SceneBounds = vertices.length ? [
     Math.min(...vertices.map(point => point.x * scale)) - origin[0] - WALL_CAP_REACH_M, -.14,
     Math.min(...vertices.map(point => point.y * scale)) - origin[1] - WALL_CAP_REACH_M,
     Math.max(...vertices.map(point => point.x * scale)) - origin[0] + WALL_CAP_REACH_M, project.ceilingHeightM!,
     Math.max(...vertices.map(point => point.y * scale)) - origin[1] + WALL_CAP_REACH_M,
   ] : [-width / 2, 0, -depth / 2, width / 2, project.ceilingHeightM!, depth / 2];
-  return <div className="scene-wrapper" data-testid="scene-3d" data-outdoor-mode={mode} data-outdoor-phase={mode === 'auto' ? solar?.phase ?? 'day' : mode} aria-label={t('sceneLabel')}>
+  return <div className="scene-wrapper" data-testid="scene-3d" data-camera-view={focusZone?.id ?? 'apartment'} data-furnished={hasFurnishings && furnished} data-preview-lights={previewLights} data-outdoor-mode={mode} data-outdoor-phase={mode === 'auto' ? solar?.phase ?? 'day' : mode} aria-label={t('sceneLabel')}>
     <Canvas shadows camera={{ position: [size * .65, size * .85, size * .9], fov: 42, near: .1, far: size * 20 }} gl={{ antialias: true }}>
       <SceneEnvironment mode={mode} solar={solar} size={size} />
         <SolidWalls model={wallModel} project={project} origin={origin} onSelect={onSelect} />
-        {project.rooms.map((room, i) => <RoomVolume key={room.id} room={room} scale={scale} origin={origin} color={ROOM_COLORS[i % ROOM_COLORS.length]} selected={selectedId === room.id} onSelect={() => onSelect(room.id)} />)}
+        {project.rooms.map((room, i) => <RoomVolume key={room.id} room={room} scale={scale} origin={origin} color={ROOM_COLORS[i % ROOM_COLORS.length]} floorTexture={furnished && project.sceneObjects.some(object => object.roomId === room.id) ? woodTexture : undefined} selected={selectedId === room.id} onSelect={() => onSelect(room.id)} />)}
         <OpeningMeshes project={project} placements={wallModel.openings} origin={origin} onRoomSelect={onSelect} />
-        <ZoneMeshes project={project} origin={origin} selectedId={selectedZoneId} onSelect={onZoneSelect} />
-        <CameraControls bounds={bounds} />
+        <ZoneMeshes project={project} origin={origin} selectedId={selectedZoneId} onSelect={onZoneSelect} furnished={furnished && hasFurnishings} />
+        {furnished && <FurnishingMeshes project={project} origin={origin} lights={previewLights} onSelect={onSelect} />}
+        <CameraControls bounds={bounds} viewKey={focusZone?.id ?? 'apartment'} />
     </Canvas>
+    {hasFurnishings && <div className="scene-furnishing-controls" role="group" aria-label={t('furnishingTitle')}>
+      <button aria-pressed={furnished} onClick={() => setFurnished(value => !value)}>{t('furniture')}</button>
+      <button aria-pressed={previewLights} disabled={!furnished} onClick={() => setPreviewLights(value => !value)}>{t('previewLights')}</button>
+      <select aria-label={t('cameraView')} value={focusZone?.id ?? 'apartment'} onChange={event => setViewScope(event.target.value)}><option value="apartment">{t('wholeApartment')}</option>{project.zones.filter(zone => project.sceneObjects.some(object => object.roomId === zone.roomId)).map(zone => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select>
+      <small>{t('furnishingApproximate')}</small>
+    </div>}
     <div className="scene-environment-controls" role="group" aria-label={t('outdoorTitle')}>
       <span>{t('outdoorTitle')}</span><div>
         <button aria-pressed={mode === 'day'} onClick={() => changeMode('day')}><Sun size={14} />{t('outdoorDay')}</button>

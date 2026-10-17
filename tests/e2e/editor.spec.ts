@@ -10,7 +10,7 @@ test('recognizes openings on an existing plan, preserves metadata and shows them
     { id: 'ai-window', kind: 'window', heightM: 1.5, sillHeightM: .85, spans: [{ roomId: 'room-1', edgeIndex: 0, start: .2, end: .6 }] },
   ];
   await page.route('**/api/recognize-openings', async route => {
-    expect(route.request().postDataJSON().project).toEqual({ ...project, schemaVersion: 4, zones: [], apartmentBrief: null });
+    expect(route.request().postDataJSON().project).toEqual({ ...project, schemaVersion: 5, zones: [], apartmentBrief: null, sceneObjects: [] });
     await route.fulfill({ json: { project: { ...project, openings }, warnings: [] } });
   });
   await page.getByRole('button', { name: 'Распознать окна и двери', exact: true }).click();
@@ -20,7 +20,7 @@ test('recognizes openings on an existing plan, preserves metadata and shows them
   const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Экспорт проекта', exact: true }).click();
   const stream = await (await download).createReadStream(); const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
-  expect(JSON.parse(Buffer.concat(chunks).toString())).toEqual({ ...project, schemaVersion: 4, openings, zones: [], apartmentBrief: null });
+  expect(JSON.parse(Buffer.concat(chunks).toString())).toEqual({ ...project, schemaVersion: 5, openings, zones: [], apartmentBrief: null, sceneObjects: [] });
   await page.getByTestId('language-select').selectOption('en');
   await expect(page.getByRole('button', { name: 'Recognize windows and doors', exact: true })).toBeEnabled();
 });
@@ -288,7 +288,7 @@ test('warns about a swallowed room locally and clears the warning after the over
   expect(recognitionRequests).toBe(0);
 });
 
-test('places real partition doors and windows, edits dimensions and migrates older files and round-trips version 4', async ({ page }) => {
+test('places real partition doors and windows, edits dimensions and migrates older files and round-trips version 5', async ({ page }) => {
   await page.goto('/');
   const fixture = await importFixture(page);
   const secondRoom = { ...fixture.rooms[0], id: 'room-2', name: 'Bedroom', polygon: [{ x: 310, y: 10 }, { x: 550, y: 10 }, { x: 550, y: 200 }, { x: 310, y: 200 }] };
@@ -320,7 +320,7 @@ test('places real partition doors and windows, edits dimensions and migrates old
   const stream = await (await downloadPromise).createReadStream(); const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   const bytes = Buffer.concat(chunks), saved = JSON.parse(bytes.toString());
-  expect(saved.schemaVersion).toBe(4); expect(saved.source).toEqual(project.source);
+  expect(saved.schemaVersion).toBe(5); expect(saved.source).toEqual(project.source);
   expect(saved.openings).toHaveLength(2);
   expect(saved.openings[0]).toMatchObject({ kind: 'door', heightM: 2.1, sillHeightM: 0, spans: [{ roomId: 'room-1', edgeIndex: 1 }, { roomId: 'room-2', edgeIndex: 3 }] });
   expect(saved.openings[1]).toMatchObject({ kind: 'window', heightM: 1.5, sillHeightM: .85 });

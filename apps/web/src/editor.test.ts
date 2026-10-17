@@ -16,7 +16,7 @@ describe('editor metadata and imports', () => {
   it('round trips a project and rejects unsupported or oversized JSON', () => {
     const current = project();
     expect(parseProjectText(JSON.stringify(current))).toEqual(current);
-    expect(() => parseProjectText(JSON.stringify({ ...current, schemaVersion: 5 }))).toThrow();
+    expect(() => parseProjectText(JSON.stringify({ ...current, schemaVersion: 6 }))).toThrow();
     expect(() => parseProjectText(' '.repeat(20 * 1024 * 1024 + 1))).toThrow(/20/);
   });
 });

@@ -6,12 +6,12 @@ const rectangle = (left: number, top: number, right: number, bottom: number) => 
 const make = () => createProject({ width: 100, height: 100, dataUrl: 'data:image/png;base64,YQ==' }, { rooms: [{ name: 'Studio', reportedAreaM2: 30, polygon: rectangle(0, 0, 1, 1) }], ceilingHeightM: null, warnings: [] });
 const zone = (roomId: string, id = 'zone-1', polygon = rectangle(0, 0, 50, 100)) => ({ id, roomId, name: 'Kitchen', polygon });
 
-it('migrates v1 and v2 to v4 without inventing zones or losing openings', () => {
-  const project = make(); const { zones: _zones, apartmentBrief: _brief, ...withoutZones } = project;
+it('migrates v1 and v2 to v5 without inventing zones or losing openings', () => {
+  const project = make(); const { zones: _zones, apartmentBrief: _brief, sceneObjects: _objects, ...withoutZones } = project;
   const v2 = { ...withoutZones, schemaVersion: 2 };
-  expect(ProjectSchema.parse(v2)).toEqual({ ...project, schemaVersion: 4, zones: [] });
+  expect(ProjectSchema.parse(v2)).toEqual({ ...project, schemaVersion: 5, zones: [] });
   const { openings: _openings, ...v1 } = v2;
-  expect(ProjectSchema.parse({ ...v1, schemaVersion: 1 })).toEqual({ ...project, schemaVersion: 4, zones: [] });
+  expect(ProjectSchema.parse({ ...v1, schemaVersion: 1 })).toEqual({ ...project, schemaVersion: 5, zones: [] });
 });
 it('round-trips zones independently of room geometry and keeps their area unknown without scale', () => {
   const project = make(); const item = zone(project.rooms[0].id);

@@ -1,4 +1,6 @@
 export const en = {
+  cameraView: 'View', wholeApartment: 'Whole apartment',
+  furnishingTitle: 'Interior preview', furniture: 'Furniture', previewLights: 'Preview lights', furnishingApproximate: 'Approximate furniture · local light preview',
   outdoorTitle: 'Outdoors', outdoorDay: 'Day', outdoorNight: 'Night', outdoorAuto: 'Auto', outdoorManual: 'Manual preview', outdoorChecking: 'Checking the sun…', outdoorAutoDay: 'Real time · Day', outdoorAutoTwilight: 'Real time · Twilight', outdoorAutoNight: 'Real time · Night', outdoorFallback: 'Auto unavailable · showing Day',
   sceneTooComplex: 'This plan is too detailed for the 3D preview', sceneTooComplexHint: 'Continue in 2D or reduce the number of vertices and openings. Your project remains in the editor and can be exported.',
   briefTitle: 'About the apartment', briefHint: 'Optional questions before recognition. Your answers are sent with the image to the selected AI provider as context. Approximate area does not set the plan scale.', briefClear: 'Clear apartment details',
@@ -43,6 +45,8 @@ export const en = {
 } as const;
 export type TranslationKey = keyof typeof en;
 export const ru: Record<TranslationKey, string> = {
+  cameraView: 'Ракурс', wholeApartment: 'Вся квартира',
+  furnishingTitle: 'Интерьер', furniture: 'Мебель', previewLights: 'Свет в предпросмотре', furnishingApproximate: 'Мебель приблизительная · свет для просмотра',
   outdoorTitle: 'На улице', outdoorDay: 'День', outdoorNight: 'Ночь', outdoorAuto: 'Авто', outdoorManual: 'Ручной режим', outdoorChecking: 'Проверяем положение солнца…', outdoorAutoDay: 'Сейчас · День', outdoorAutoTwilight: 'Сейчас · Сумерки', outdoorAutoNight: 'Сейчас · Ночь', outdoorFallback: 'Авто недоступно · показан день',
   sceneTooComplex: 'План слишком сложный для 3D-предпросмотра', sceneTooComplexHint: 'Продолжайте работу в 2D или уменьшите число вершин и проёмов. Проект остаётся в редакторе, его можно экспортировать.',
   briefTitle: 'О квартире', briefHint: 'Необязательные вопросы перед распознаванием. Ответы отправляются вместе с планом выбранному AI-провайдеру как подсказка. Примерная площадь не задаёт масштаб плана.', briefClear: 'Очистить сведения',

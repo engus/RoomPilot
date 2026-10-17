@@ -27,7 +27,7 @@ test('keeps a complex plan editable in 2D when the solid preview budget is excee
   const project = JSON.parse(Buffer.concat(chunks).toString());
   project.rooms = Array.from({ length: 21 }, (_, i) => ({ id: `room-${i}`, name: `Room ${i}`, reportedAreaM2: null,
     polygon: Array.from({ length: 100 }, (_, j) => ({ x: 25 + i % 7 * 36 + Math.cos(j * Math.PI / 50) * 10, y: 25 + Math.floor(i / 7) * 36 + Math.sin(j * Math.PI / 50) * 10 })) }));
-  project.openings = []; project.zones = [];
+  project.openings = []; project.zones = []; project.sceneObjects = [];
   await page.getByLabel('JSON проекта', { exact: true }).setInputFiles({ name: 'complex.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
   await expect(page.getByRole('status')).toContainText('Проект импортирован');
   await page.getByRole('button', { name: '3D', exact: true }).click();

@@ -21,7 +21,7 @@ test('collects apartment facts separately from physical spaces and preserves the
   await page.getByRole('button', { name: 'Кухни, балконы и кладовые', exact: true }).click();
   await page.getByLabel('Кладовых', { exact: true }).fill('0');
   const project = await exportProject(page);
-  expect(project.schemaVersion).toBe(4); expect(project.apartmentBrief).toMatchObject({ livingRooms: 3, approximateAreaM2: 58, balconyArea: 'excluded', bathrooms: 1, bathroomLayout: 'combined', storageRooms: 0 });
+  expect(project.schemaVersion).toBe(5); expect(project.apartmentBrief).toMatchObject({ livingRooms: 3, approximateAreaM2: 58, balconyArea: 'excluded', bathrooms: 1, bathroomLayout: 'combined', storageRooms: 0 });
   expect(project.rooms).toHaveLength(6); expect(project.rooms.some((room: { name: string }) => room.name === 'Санузел')).toBe(true);
   await page.route('**/api/recognize?*', async route => {
     const body = route.request().postDataBuffer()!.toString();

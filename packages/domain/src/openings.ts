@@ -118,6 +118,7 @@ export function removeRoom(project: Project, id: string): Project {
   return ProjectSchema.parse({
     ...project, rooms: project.rooms.filter(room => room.id !== id),
     zones: project.zones.filter(zone => zone.roomId !== id),
+    sceneObjects: project.sceneObjects.filter(object => object.roomId !== id),
     openings: project.openings.filter(opening => opening.spans.every(span => span.roomId !== id)),
   });
 }

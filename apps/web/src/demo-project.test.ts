@@ -3,6 +3,15 @@ import { buildSolidWallModel, findRoomOverlaps, getComputedArea, getZoneArea, is
 import { buildDemoProject } from './demo-project';
 import { DEMO_SIZE } from './demo-layout';
 
+it('furnishes only the photographed shared room with persistent semantic instances', () => {
+  const p = buildDemoProject({ ...DEMO_SIZE, dataUrl: 'data:image/png;base64,YQ==' }, 'en');
+  expect(p.sceneObjects.length).toBeGreaterThan(35);
+  expect(p.sceneObjects.every(object => object.roomId === 'main')).toBe(true);
+  for (const kind of ['kitchen-cook', 'kitchen-sink', 'table', 'pendant', 'tv-console', 'mirror', 'bike']) expect(p.sceneObjects.some(object => object.kind === kind)).toBe(true);
+  expect(p.sceneObjects.filter(object => object.kind === 'pendant')).toHaveLength(2);
+  expect(ProjectSchema.parse(JSON.parse(JSON.stringify(p))).sceneObjects).toEqual(p.sceneObjects);
+});
+
 function contains(polygons: WallPolygon[], x: number, y: number, scale: number) {
   const inside = (ring: { x: number; y: number }[]) => {
     let value = false;

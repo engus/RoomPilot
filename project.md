@@ -8,6 +8,8 @@ The owner redirected work from a general apartment editor to a detailed, recogni
 
 Outdoor ambience now supports manual Day/Night and optional Auto sunlight. The local server computes the current sun position from private configuration and an explicit plan orientation. The user confirmed the balcony-facing top of their current plan is east; exact location/address are private runtime data and must not enter this document or Git. Weather, neighboring-building shadows and actual indoor lighting state require later data/integration.
 
+The public demo now includes approximate photo-guided procedural furniture, appliances, fixtures and decor in the kitchen/living/corridor. Version 5 persists bounded scene objects with stable IDs and room ownership separately from source geometry and future HA bindings. The original photo pixels remain private. Local furniture/light-preview controls and named-zone camera views help inspect the dollhouse; they do not report or control real devices. Bedrooms, bathroom, storage and balcony remain architectural shells pending their furnishing references.
+
 ## Existing floor-plan workflow
 
 Users upload a floor plan, review room outlines and names, inspect printed and computed areas, and supply missing scale and ceiling height. The application builds a simplified 3D model. A later milestone will let users place HA entities on the model and control their devices directly.
@@ -28,7 +30,7 @@ Documentation is written in English. The interface supports English and Russian;
 6. Request ceiling height when absent. A detected value also requires user confirmation and remains editable.
 7. Offer 2D and simplified 3D previews, plus versioned JSON project export/import. Physical scale and confirmed ceiling height are prerequisites for 3D.
 8. Report missing credentials or provider failure explicitly. Demo mode is a separate, labelled action.
-9. Add door, window and passage objects on room edges, edit their dimensions, and preview actual wall apertures. Version 1/2/3 imports migrate to version 4; new exports preserve openings, zones and optional apartment context.
+9. Add door, window and passage objects on room edges, edit their dimensions, and preview actual wall apertures. Version 1/2/3/4 imports migrate to version 5; new exports preserve openings, zones, optional apartment context and scene objects.
 10. Divide a physical room into named wall-free zones; edit their polygons, inspect calibrated areas and select them in 2D/3D. Preserve physical room walls and door/window attachments.
 11. Collect optional habitable-room counts, approximate area with balcony inclusion, bathroom count/layout and ancillary-space counts before recognition. Treat them as hints, independently of physical polygons and calibration. Preserve answers in full and openings-only recognition and project exports.
 

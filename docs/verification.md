@@ -1,5 +1,14 @@
 # Milestone 1 verification
 
+## Photo-guided furnishing increment — 2026-10-18
+
+- The calibrated apartment demo contains 41 persisted procedural instances/assemblies in the shared room, including kitchen cabinetry/appliances, dining furniture, woven pendants, living TV/armchair/rug, radiator/ventilation details and corridor storage/mirror/bicycle/lighting. Dimensions and placement are approximate; original photograph pixels and identifying details are not bundled.
+- Version 5 migrates versions 1–4 with empty scene objects. Validation covers stable IDs, valid parent ownership, source anchor bounds, rotated physical containment when calibrated, height limits when known and a 200-instance limit. Room deletion removes furnishings; incomplete scale/ceiling metadata preserves 2D/export while disabling 3D.
+- Furniture visibility, local preview lights and named-zone camera frames remain independent of project data, outdoor ambience and UI themes. There are at most three extra unshadowed point lights; other fixtures use emissive materials. No real indoor state or HA commands are implemented.
+- RED/GREEN observed for migration, validation, deletion, demo contents, missing preview controls/view selector and metadata reset export recovery. Independent review identified the metadata reset regression and confirmed its fix; no actionable findings remain.
+- Final checks: `pnpm test` — 151 passing tests across 16 files; `pnpm typecheck` and `pnpm build` pass; `pnpm test:e2e` — 27 passing scenarios. Existing zero geometry-upload regression on selection/theme still passes with the furnished demo. Kitchen/living/corridor Day/Night views were visually inspected; private screenshots and project backups remain ignored.
+- Vite retains its existing large lazy 3D chunk warning: 927.68 kB before gzip, 250.24 kB compressed. No new dependencies or external assets.
+
 Date: 2026-10-17. Environment: Windows, Node.js 24.19.0, pnpm 11.25.0.
 
 ## Owner-confirmed wraparound balcony glazing

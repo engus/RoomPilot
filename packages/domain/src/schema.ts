@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { validatePolygon } from './geometry';
 import { isPolygonWithinRoom, zonePolygonsOverlap } from './zones';
 import { ApartmentBriefOrNullSchema } from './apartment-brief';
+import { SceneObjectSchema, sceneObjectFootprint } from './scene-objects';
 
 export const PointSchema = z.object({ x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative() }).strict();
 const PolygonSchema = z.array(PointSchema).min(3).max(100).refine(validatePolygon, 'Некорректный контур комнаты');
@@ -50,11 +51,19 @@ const projectFields = {
 const LegacyProjectSchema = z.object({ schemaVersion: z.literal(1), ...projectFields }).strict();
 const Version2ProjectSchema = z.object({ schemaVersion: z.literal(2), ...projectFields, openings: z.array(OpeningSchema).max(200) }).strict();
 const Version3ProjectSchema = z.object({ schemaVersion: z.literal(3), ...projectFields, openings: z.array(OpeningSchema).max(200), zones: z.array(ZoneSchema).max(200) }).strict();
-const CurrentProjectSchema = z.object({ schemaVersion: z.literal(4), ...projectFields, openings: z.array(OpeningSchema).max(200), zones: z.array(ZoneSchema).max(200), apartmentBrief: ApartmentBriefOrNullSchema }).strict();
-export const ProjectSchema = z.union([CurrentProjectSchema, Version3ProjectSchema, Version2ProjectSchema, LegacyProjectSchema])
-  .transform(value => value.schemaVersion === 4 ? value : { ...value, schemaVersion: 4 as const, openings: 'openings' in value ? value.openings : [], zones: 'zones' in value ? value.zones : [], apartmentBrief: null })
+const version4Fields = { ...projectFields, openings: z.array(OpeningSchema).max(200), zones: z.array(ZoneSchema).max(200), apartmentBrief: ApartmentBriefOrNullSchema };
+const Version4ProjectSchema = z.object({ schemaVersion: z.literal(4), ...version4Fields }).strict();
+const CurrentProjectSchema = z.object({ schemaVersion: z.literal(5), ...version4Fields, sceneObjects: z.array(SceneObjectSchema).max(200) }).strict();
+export const ProjectSchema = z.union([CurrentProjectSchema, Version4ProjectSchema, Version3ProjectSchema, Version2ProjectSchema, LegacyProjectSchema])
+  .transform(value => value.schemaVersion === 5 ? value : { ...value, schemaVersion: 5 as const, sceneObjects: [], openings: 'openings' in value ? value.openings : [], zones: 'zones' in value ? value.zones : [], apartmentBrief: 'apartmentBrief' in value ? value.apartmentBrief : null })
   .superRefine((value, ctx) => {
-  const points = [...value.rooms.flatMap(r => r.polygon), ...value.zones.flatMap(zone => zone.polygon), ...(value.calibration?.points ?? [])];
+  if (new Set(value.sceneObjects.map(object => object.id)).size !== value.sceneObjects.length) ctx.addIssue({ code: 'custom', message: 'Duplicate scene object ID.' });
+  value.sceneObjects.forEach((object, index) => {
+    const room = value.rooms.find(room => room.id === object.roomId);
+    if (!room || (value.calibration && !isPolygonWithinRoom(sceneObjectFootprint(object, value.calibration.metresPerPixel), room.polygon))) ctx.addIssue({ code: 'custom', path: ['sceneObjects', index], message: 'Scene object must fit inside its parent room when scale is known.' });
+    if (value.ceilingHeightM !== null && object.elevationM + object.sizeM[1] > value.ceilingHeightM + 1e-8) ctx.addIssue({ code: 'custom', path: ['sceneObjects', index], message: 'Scene object exceeds ceiling height.' });
+  });
+  const points = [...value.rooms.flatMap(r => r.polygon), ...value.zones.flatMap(zone => zone.polygon), ...value.sceneObjects.map(object => object.position), ...(value.calibration?.points ?? [])];
   if (points.some(p => p.x > value.source.width || p.y > value.source.height)) ctx.addIssue({ code: 'custom', message: 'Точка за пределами изображения' });
   if (new Set(value.rooms.map(r => r.id)).size !== value.rooms.length) ctx.addIssue({ code: 'custom', message: 'Повторяющийся идентификатор комнаты' });
   if (value.ceilingHeightConfirmed && value.ceilingHeightM === null) ctx.addIssue({ code: 'custom', message: 'Не указана высота потолка' });

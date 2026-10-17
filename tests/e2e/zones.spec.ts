@@ -22,7 +22,7 @@ test('opens the approved apartment demo with balcony glazing and three wall-free
   const stream = await (await download).createReadStream(); const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   const bytes = Buffer.concat(chunks), saved = JSON.parse(bytes.toString());
-  expect(saved.schemaVersion).toBe(4); expect(saved.rooms).toHaveLength(6); expect(saved.openings).toHaveLength(13);
+  expect(saved.schemaVersion).toBe(5); expect(saved.rooms).toHaveLength(6); expect(saved.openings).toHaveLength(13);
   expect(saved.openings.filter((opening: { id: string }) => opening.id.startsWith('balcony-glazing-'))).toHaveLength(3);
   expect(saved.zones).toHaveLength(3); expect(saved.zones.some((zone: { name: string }) => zone.name === 'Семейная гостиная')).toBe(true);
   await page.screenshot({ path: 'test-results/roompilot-demo-zones-3d.png', fullPage: true });
