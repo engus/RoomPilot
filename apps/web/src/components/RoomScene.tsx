@@ -13,6 +13,8 @@ import { useOutdoorEnvironment } from '../use-outdoor-environment';
 import { useInterface } from '../i18n';
 import FurnishingMeshes from './FurnishingMeshes';
 import { createWoodFloorTexture } from './wood-floor';
+import PreviewElements from './PreviewElements';
+import type { ScenePreview } from '../use-scene-preview';
 
 type SceneBounds = [number, number, number, number, number, number];
 
@@ -70,10 +72,10 @@ function RoomVolume({ room, scale, origin, color, selected, onSelect, floorTextu
   </group>;
 }
 
-export default function RoomScene({ project, selectedId, onSelect, selectedZoneId = null, onZoneSelect = () => {} }: { project: Project; selectedId: string | null; onSelect: (id: string) => void; selectedZoneId?: string | null; onZoneSelect?: (id: string) => void }) {
+export default function RoomScene({ project, selectedId, onSelect, preview, selectedZoneId = null, onZoneSelect = () => {} }: { project: Project; selectedId: string | null; onSelect: (id: string) => void; preview: ScenePreview; selectedZoneId?: string | null; onZoneSelect?: (id: string) => void }) {
   const { t } = useInterface();
   const { mode, changeMode, solar, pending } = useOutdoorEnvironment();
-  const [furnished, setFurnished] = useState(true), [previewLights, setPreviewLights] = useState(true);
+  const [furnished, setFurnished] = useState(true);
   const hasFurnishings = project.sceneObjects.length > 0;
   const [viewScope, setViewScope] = useState('apartment');
   const woodTexture = useMemo(createWoodFloorTexture, []);
@@ -91,22 +93,23 @@ export default function RoomScene({ project, selectedId, onSelect, selectedZoneI
     Math.max(...vertices.map(point => point.x * scale)) - origin[0] + WALL_CAP_REACH_M, project.ceilingHeightM!,
     Math.max(...vertices.map(point => point.y * scale)) - origin[1] + WALL_CAP_REACH_M,
   ] : [-width / 2, 0, -depth / 2, width / 2, project.ceilingHeightM!, depth / 2];
-  return <div className="scene-wrapper" data-testid="scene-3d" data-camera-view={focusZone?.id ?? 'apartment'} data-furnished={hasFurnishings && furnished} data-preview-lights={previewLights} data-outdoor-mode={mode} data-outdoor-phase={mode === 'auto' ? solar?.phase ?? 'day' : mode} aria-label={t('sceneLabel')}>
+  return <div className="scene-wrapper" data-testid="scene-3d" data-camera-view={focusZone?.id ?? 'apartment'} data-furnished={hasFurnishings && furnished} data-preview-lights={preview.anyLightOn} data-outdoor-mode={mode} data-outdoor-phase={mode === 'auto' ? solar?.phase ?? 'day' : mode} aria-label={t('sceneLabel')}>
     <Canvas shadows camera={{ position: [size * .65, size * .85, size * .9], fov: 42, near: .1, far: size * 20 }} gl={{ antialias: true }}>
       <SceneEnvironment mode={mode} solar={solar} size={size} />
         <SolidWalls model={wallModel} project={project} origin={origin} onSelect={onSelect} />
         {project.rooms.map((room, i) => <RoomVolume key={room.id} room={room} scale={scale} origin={origin} color={ROOM_COLORS[i % ROOM_COLORS.length]} floorTexture={furnished && project.sceneObjects.some(object => object.roomId === room.id) ? woodTexture : undefined} selected={selectedId === room.id} onSelect={() => onSelect(room.id)} />)}
         <OpeningMeshes project={project} placements={wallModel.openings} origin={origin} onRoomSelect={onSelect} />
         <ZoneMeshes project={project} origin={origin} selectedId={selectedZoneId} onSelect={onZoneSelect} furnished={furnished && hasFurnishings} />
-        {furnished && <FurnishingMeshes project={project} origin={origin} lights={previewLights} onSelect={onSelect} />}
+        {furnished && <FurnishingMeshes project={project} origin={origin} preview={preview} onSelect={onSelect} />}
         <CameraControls bounds={bounds} viewKey={focusZone?.id ?? 'apartment'} />
     </Canvas>
     {hasFurnishings && <div className="scene-furnishing-controls" role="group" aria-label={t('furnishingTitle')}>
       <button aria-pressed={furnished} onClick={() => setFurnished(value => !value)}>{t('furniture')}</button>
-      <button aria-pressed={previewLights} disabled={!furnished} onClick={() => setPreviewLights(value => !value)}>{t('previewLights')}</button>
+      <button aria-pressed={preview.anyLightOn} disabled={!furnished} onClick={preview.toggleAllLights}>{t('previewLights')}</button>
       <select aria-label={t('cameraView')} value={focusZone?.id ?? 'apartment'} onChange={event => setViewScope(event.target.value)}><option value="apartment">{t('wholeApartment')}</option>{project.zones.filter(zone => project.sceneObjects.some(object => object.roomId === zone.roomId)).map(zone => <option key={zone.id} value={zone.id}>{zone.name}</option>)}</select>
       <small>{t('furnishingApproximate')}</small>
     </div>}
+    {hasFurnishings && furnished && <PreviewElements preview={preview} />}
     <div className="scene-environment-controls" role="group" aria-label={t('outdoorTitle')}>
       <span>{t('outdoorTitle')}</span><div>
         <button aria-pressed={mode === 'day'} onClick={() => changeMode('day')}><Sun size={14} />{t('outdoorDay')}</button>

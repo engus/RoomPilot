@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Vector3, Quaternion, Shape } from 'three';
+import { Vector3, Quaternion, Shape, CatmullRomCurve3 } from 'three';
 
 export type V3 = [number, number, number];
 export const C = { ivory: '#e2ddcf', taupe: '#b9b1a4', wood: '#aa7952', paleWood: '#c59b6c', dark: '#23282c', fabric: '#d4d4cc', brass: '#b6984c', warm: '#ffdc93' };
@@ -15,6 +15,10 @@ export function Rod({ a, b, radius = .015, color = C.dark }: { a: V3; b: V3; rad
     return { position: from.add(to).multiplyScalar(.5), quaternion: new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), delta.clone().normalize()), length: delta.length() };
   }, [...a, ...b]);
   return <mesh position={transform.position} quaternion={transform.quaternion} castShadow><cylinderGeometry args={[radius, radius, transform.length, 8]} /><meshStandardMaterial color={color} roughness={.65} /></mesh>;
+}
+export function CurvedRod({ points, radius = .012, color = C.dark }: { points: V3[]; radius?: number; color?: string }) {
+  const curve = useMemo(() => new CatmullRomCurve3(points.map(point => new Vector3(...point))), points.flat());
+  return <mesh castShadow><tubeGeometry args={[curve, 18, radius, 8, false]} /><meshStandardMaterial color={color} roughness={.55} /></mesh>;
 }
 export function RoundSlab({ p, s, color = C.ivory }: { p: V3; s: V3; color?: string }) {
   const shape = useMemo(() => {

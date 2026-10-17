@@ -10,6 +10,8 @@ Outdoor ambience now supports manual Day/Night and optional Auto sunlight. The l
 
 The public demo now includes approximate photo-guided procedural furniture, appliances, fixtures and decor in the kitchen/living/corridor. Version 5 persists bounded scene objects with stable IDs and room ownership separately from source geometry and future HA bindings. The original photo pixels remain private. Local furniture/light-preview controls and named-zone camera views help inspect the dollhouse; they do not report or control real devices. Bedrooms, bathroom, storage and balcony remain architectural shells pending their furnishing references.
 
+Higher-quality reference review corrected the refrigerator to the entry beside the sink and separated the window-side storage. The 42-instance demo has a transparent display cabinet, curved seating/faucet and distinct pendant shapes. Individual fixture clicks and an accessible element list toggle 19 light channels plus illustrative TV/AC previews. Preview state is held outside project data, survives 2D/3D remounts during the session, and resets when the document is replaced or the page reloads. There are at most three aggregate local lights; all light targets contribute even when an imported document has more than three regions. HA integration remains the next milestone.
+
 ## Existing floor-plan workflow
 
 Users upload a floor plan, review room outlines and names, inspect printed and computed areas, and supply missing scale and ceiling height. The application builds a simplified 3D model. A later milestone will let users place HA entities on the model and control their devices directly.

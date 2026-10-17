@@ -1,14 +1,23 @@
 import type { SceneObject } from '@roompilot/domain';
-import { Box, Cylinder, Rod, RoundSlab, C } from './model-parts';
+import { useMemo } from 'react';
+import { Shape } from 'three';
+import { Box, Cylinder, Rod, CurvedRod, RoundSlab, C } from './model-parts';
 import { Fridge, KitchenCook, KitchenSink } from './KitchenModels';
+import type { ModelInteractions } from './PreviewPart';
 
 function Legs({ top = .9, color = C.wood }: { top?: number; color?: string }) {
   return <>{[-.38, .38].flatMap(x => [-.35, .35].map(z => <Rod key={`${x}-${z}`} a={[x, .02, z]} b={[x * .9, top, z * .9]} radius={.027} color={color} />))}</>;
 }
 function Chair() {
+  const back = useMemo(() => {
+    const shape = new Shape();
+    for (let i = 0; i <= 20; i++) { const a = Math.PI / 2 + i / 20 * Math.PI; const x = Math.sin(a) * .48, y = -Math.cos(a) * .48; if (i) shape.lineTo(x, y); else shape.moveTo(x, y); }
+    for (let i = 20; i >= 0; i--) { const a = Math.PI / 2 + i / 20 * Math.PI; shape.lineTo(Math.sin(a) * .37, -Math.cos(a) * .37); }
+    shape.closePath(); return shape;
+  }, []);
+  const options = useMemo(() => ({ depth: 1, bevelEnabled: false }), []);
   return <><Legs top={.51} /><RoundSlab p={[0, .53, .04]} s={[.94, .14, .85]} color={C.fabric} />
-    <RoundSlab p={[0, .78, -.33]} s={[.95, .44, .2]} color={C.fabric} />
-    {[-1, 1].map(sign => <RoundSlab key={sign} p={[sign * .4, .66, -.12]} s={[.17, .23, .58]} color={C.fabric} />)}
+    <mesh position={[0, .55, .04]} rotation={[-Math.PI / 2, 0, 0]} scale={[1, 1, .43]} castShadow><extrudeGeometry args={[back, options]} /><meshStandardMaterial color={C.fabric} roughness={.95} /></mesh>
   </>;
 }
 function Sideboard({ tall = false }: { tall?: boolean }) {
@@ -18,14 +27,15 @@ function Sideboard({ tall = false }: { tall?: boolean }) {
     {tall && [.38, .63, .86].map(y => <Box key={y} p={[0, y, .52]} s={[.97, .008, .012]} color={C.taupe} />)}
   </>;
 }
-function Pendant({ lights }: { lights: boolean }) {
+function Pendant({ lights, rounded = false }: { lights: boolean; rounded?: boolean }) {
+  const profile = rounded ? [[.06, .43], [.18, .49], [.33, .44], [.44, .3], [.48, .16]] : [[.06, .47], [.14, .44], [.23, .35], [.31, .2]];
   return <>
     <Cylinder p={[0, .98, 0]} s={[.16, .035, .16]} color={C.dark} /><Rod a={[0, .43, 0]} b={[0, .97, 0]} radius={.008} />
     <Cylinder p={[0, .16, 0]} s={[.15, .15, .15]} color={lights ? C.warm : C.ivory} glow={lights} />
-    {[0, 1, 2, 3].map(i => <mesh key={i} rotation={[Math.PI / 2, 0, 0]} position={[0, .06 + i * .105, 0]} scale={[1 - i * .16, 1 - i * .16, 1]}><torusGeometry args={[.47, .012, 4, 24]} /><meshStandardMaterial color={C.paleWood} /></mesh>)}
-    {Array.from({ length: 24 }, (_, i) => {
-      const angle = i / 24 * Math.PI * 2;
-      return <Rod key={i} a={[Math.cos(angle) * .47, .06, Math.sin(angle) * .47]} b={[Math.cos(angle + .24) * .2, .4, Math.sin(angle + .24) * .2]} radius={.012} color={C.paleWood} />;
+    {profile.map(([y, radius]) => <mesh key={y} rotation={[Math.PI / 2, 0, 0]} position={[0, y, 0]}><torusGeometry args={[radius, .01, 4, 28]} /><meshStandardMaterial color={C.paleWood} /></mesh>)}
+    {Array.from({ length: 32 }, (_, i) => {
+      const angle = i / 16 * Math.PI, twist = i % 2 ? -.3 : .3;
+      return <CurvedRod key={i} points={profile.map(([y, radius]) => [Math.cos(angle + y * twist) * radius, y, Math.sin(angle + y * twist) * radius])} radius={.009} color={C.paleWood} />;
     })}
   </>;
 }
@@ -35,12 +45,13 @@ function FloorLamp({ lights }: { lights: boolean }) {
     <mesh position={[0, .87, 0]}><cylinderGeometry args={[.4, .49, .25, 20]} /><meshStandardMaterial color={C.ivory} emissive={C.warm} emissiveIntensity={lights ? .5 : 0} /></mesh>
   </>;
 }
-function TVConsole() {
+function TVConsole({ on }: { on: boolean }) {
   return <>
     <group scale={[1, .37, 1]}><Sideboard /><Box p={[0, 1, 0]} s={[1.01, .06, 1.04]} color={C.wood} />
       {[-.35, 0, .35].map(x => <Box key={x} p={[x, .76, .53]} s={[.15, .025, .025]} color={C.dark} />)}
     </group>
-    <Box p={[0, .69, -.1]} s={[.87, .56, .075]} color={C.dark} /><Box p={[0, .69, -.054]} s={[.83, .52, .008]} color="#17262c" />
+    <Box p={[0, .69, -.1]} s={[.87, .56, .075]} color={C.dark} /><Box p={[0, .69, -.054]} s={[.83, .52, .008]} color={on ? '#356579' : '#10181b'} glow={on} />
+    <Box p={[-.16, .73, -.048]} s={[.35, .26, .003]} color={on ? '#568878' : '#10181b'} /><Box p={[.17, .77, -.048]} s={[.22, .02, .003]} color={on ? '#b4c6c3' : '#10181b'} />
     {[-.34, .34].map(x => <Rod key={x} a={[x * .85, .43, -.1]} b={[x, .39, .18]} radius={.014} />)}
     <Box p={[0, .409, .24]} s={[.58, .035, .17]} color={C.dark} />
     <Cylinder p={[-.42, .425, .15]} s={[.05, .06, .13]} color={C.ivory} /><Cylinder p={[-.42, .47, .15]} s={[.09, .06, .18]} color="#6e9d47" />
@@ -60,27 +71,29 @@ function Bike() {
     <Rod a={[.23, .64, 0]} b={[.24, .91, 0]} /><Rod a={[.24, .91, -.45]} b={[.24, .91, .45]} />
   </>;
 }
-export default function FurnitureModel({ kind, lights }: { kind: SceneObject['kind']; lights: boolean }) {
+export default function FurnitureModel({ kind, lights, deviceOn = false, taskLight = false, displayLight = false, interactions }: { kind: SceneObject['kind']; lights: boolean; deviceOn?: boolean; taskLight?: boolean; displayLight?: boolean; interactions?: ModelInteractions }) {
   switch (kind) {
-    case 'kitchen-cook': return <KitchenCook lights={lights} />;
-    case 'kitchen-sink': return <KitchenSink lights={lights} />;
+    case 'kitchen-cook': return <KitchenCook lights={taskLight} displayLight={displayLight} interactions={interactions} />;
+    case 'kitchen-sink': return <KitchenSink lights={taskLight} interactions={interactions} />;
     case 'fridge': return <Fridge />;
+    case 'tall-cabinet': return <><Box p={[0, .5, 0]} s={[1, 1, 1]} color={C.taupe} /><Box p={[0, .61, .51]} s={[.95, .76, .02]} />{[.07, .17, .23].map(y => <Box key={y} p={[0, y, .515]} s={[.96, .004, .01]} color={C.dark} />)}</>;
     case 'table': return <><Legs /><Box p={[0, .89, 0]} s={[.86, .12, .79]} color={C.wood} /><RoundSlab p={[0, .97, 0]} s={[1, .06, 1]} /></>;
     case 'chair': return <Chair />;
     case 'pendant': return <Pendant lights={lights} />;
+    case 'pendant-round': return <Pendant lights={lights} rounded />;
     case 'floor-lamp': return <FloorLamp lights={lights} />;
     case 'sideboard': return <Sideboard />;
     case 'shoe-cabinet': return <Sideboard tall />;
     case 'moss-art': return <><Box p={[0, .5, 0]} s={[1, 1, 1]} color={C.dark} /><Box p={[0, .5, .51]} s={[.88, .92, .04]} color="#2c5935" />{Array.from({ length: 15 }, (_, i) => <Cylinder key={i} p={[(i % 3 - 1) * .27, .12 + Math.floor(i / 3) * .18, .58]} s={[.27, .1, .17]} color={['#4e782e', '#73994b', '#1c4935'][i % 3]} rotation={[Math.PI / 2, 0, 0]} />)}</>;
-    case 'air-conditioner': return <><RoundSlab p={[0, .5, 0]} s={[1, 1, 1]} color={C.dark} /><Box p={[0, .21, .51]} s={[.85, .09, .02]} color="#101a1d" /></>;
+    case 'air-conditioner': return <><RoundSlab p={[0, .5, 0]} s={[1, 1, 1]} color={C.dark} /><Box p={[0, .21, .51]} s={[.85, .09, .02]} color={deviceOn ? '#586668' : '#101a1d'} /><Box p={[.37, .58, .51]} s={[.025, .05, .025]} color={deviceOn ? '#86d9ef' : C.dark} glow={deviceOn} /></>;
     case 'air-unit': return <RoundSlab p={[0, .5, 0]} s={[1, 1, 1]} color="#d0d1c7" />;
     case 'radiator': return <>{Array.from({ length: 10 }, (_, i) => <Box key={i} p={[-.45 + i * .1, .5, 0]} s={[.07, .9, .7]} />)}<Box p={[0, .87, 0]} s={[1, .06, .5]} /><Box p={[0, .15, 0]} s={[1, .06, .5]} /></>;
     case 'rug': return <RoundSlab p={[0, .5, 0]} s={[1, 1, 1]} color="#c9c1aa" />;
-    case 'tv-console': return <TVConsole />;
+    case 'tv-console': return <TVConsole on={deviceOn} />;
     case 'subwoofer': return <><Box p={[0, .5, 0]} s={[1, 1, 1]} color={C.dark} /><Cylinder p={[0, .55, .51]} s={[.6, .02, .6]} color="#0e171b" rotation={[Math.PI / 2, 0, 0]} /></>;
     case 'sconce': return <><Box p={[0, .5, -.25]} s={[.3, .23, .5]} color={C.brass} /><Cylinder p={[0, .5, .05]} s={[.8, 1, .8]} color={lights ? '#ffe4ac' : '#e0e3db'} glow={lights} /><Cylinder p={[0, .5, .05]} s={[.85, .17, .85]} color={C.brass} /></>;
-    case 'ceiling-light': return <><mesh position={[0, .5, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.45, .045, 6, 28]} /><meshStandardMaterial color="#ab53c8" emissive="#a047c3" emissiveIntensity={lights ? 1.2 : 0} /></mesh><Cylinder p={[0, .5, 0]} s={[.84, .4, .84]} color={C.ivory} glow={lights} /></>;
-    case 'track': return <><Box p={[0, .5, 0]} s={[1, 1, 1]} color={C.dark} />{[-.24, .24].map(x => <Box key={x} p={[x, .15, 0]} s={[.35, .3, 1]} color={lights ? C.warm : C.ivory} glow={lights} />)}</>;
+    case 'ceiling-light': return <><mesh position={[0, .5, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.45, .045, 6, 28]} /><meshStandardMaterial color={lights ? "#ab53c8" : "#dedbd6"} emissive="#a047c3" emissiveIntensity={lights ? 1.2 : 0} /></mesh><Cylinder p={[0, .5, 0]} s={[.84, .4, .84]} color={C.ivory} glow={lights} /></>;
+    case 'track': return <><Box p={[0, .5, 0]} s={[1, 1, 1]} color={C.dark} />{[-.24, .24].map(x => <Box key={x} p={[x, .15, 0]} s={[.35, .3, 1]} color={lights ? "#edf2e5" : C.ivory} glow={lights} />)}</>;
     case 'mirror': return <><Box p={[0, .5, 0]} s={[1, 1, 1]} color={C.warm} glow={lights} /><Box p={[0, .5, .52]} s={[.96, .98, .06]} color="#91a8a8" /></>;
     case 'bike': return <Bike />;
     case 'bench': return <><Legs top={.85} /><Box p={[0, .93, 0]} s={[1, .14, 1]} color={C.fabric} /><Box p={[0, .27, 0]} s={[.9, .04, .9]} color={C.wood} /></>;

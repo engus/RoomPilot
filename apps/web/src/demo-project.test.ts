@@ -8,8 +8,18 @@ it('furnishes only the photographed shared room with persistent semantic instanc
   expect(p.sceneObjects.length).toBeGreaterThan(35);
   expect(p.sceneObjects.every(object => object.roomId === 'main')).toBe(true);
   for (const kind of ['kitchen-cook', 'kitchen-sink', 'table', 'pendant', 'tv-console', 'mirror', 'bike']) expect(p.sceneObjects.some(object => object.kind === kind)).toBe(true);
-  expect(p.sceneObjects.filter(object => object.kind === 'pendant')).toHaveLength(2);
+  expect(p.sceneObjects.filter(object => object.kind === 'pendant' || object.kind === 'pendant-round')).toHaveLength(2);
   expect(ProjectSchema.parse(JSON.parse(JSON.stringify(p))).sceneObjects).toEqual(p.sceneObjects);
+});
+
+it('places the fridge beside the sink and keeps the window-side storage distinct', () => {
+  const p = buildDemoProject({ ...DEMO_SIZE, dataUrl: 'data:image/png;base64,YQ==' }, 'en');
+  const fridge = p.sceneObjects.find(object => object.id === 'kitchen-integrated-fridge')!;
+  const pantry = p.sceneObjects.find(object => object.kind === 'tall-cabinet')!;
+  expect(fridge.position.y).toBeGreaterThan(250); expect(fridge.rotationRad).toBeCloseTo(Math.PI);
+  expect(pantry.position.y).toBeLessThan(200);
+  expect(p.sceneObjects.filter(object => object.kind === 'pendant-round')).toHaveLength(1);
+  expect(ProjectSchema.safeParse(p).success).toBe(true);
 });
 
 function contains(polygons: WallPolygon[], x: number, y: number, scale: number) {

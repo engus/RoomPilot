@@ -6,16 +6,17 @@ function item(id: string, kind: SceneObject['kind'], x: number, y: number, sizeM
   return { id, roomId: 'main', kind, position: { x, y }, sizeM, rotationRad, elevationM };
 }
 export const DEMO_FURNISHINGS: SceneObject[] = [
-  item('kitchen-cooking-run', 'kitchen-cook', 739, 220, [1.86, 2.44, .6], -Math.PI / 2),
-  item('kitchen-sink-run', 'kitchen-sink', 644, 275, [1.8, 2.44, .6], Math.PI),
-  item('kitchen-integrated-fridge', 'fridge', 589, 168, [.52, 2.44, .62]),
+  item('kitchen-cooking-run', 'kitchen-cook', 739, 221, [2.02, 2.44, .6], -Math.PI / 2),
+  item('kitchen-sink-run', 'kitchen-sink', 668, 275, [1.26, 2.44, .6], Math.PI),
+  item('kitchen-integrated-fridge', 'fridge', 598, 275, [.58, 2.44, .6], Math.PI),
+  item('kitchen-window-storage', 'tall-cabinet', 589, 168, [.52, 2.44, .62]),
   item('kitchen-window-radiator', 'radiator', 667, 151, [1.1, .65, .12]),
   item('kitchen-robot-dock', 'robot-vacuum', 622, 164, [.36, .65, .38]),
   item('dining-table', 'table', 478, 203, [1.25, .76, .78]),
   item('dining-chair-left', 'chair', 410, 203, [.5, .81, .52], Math.PI / 2),
   item('dining-chair-right', 'chair', 544, 203, [.5, .81, .52], -Math.PI / 2),
   item('dining-pendant-left', 'pendant', 455, 203, [.44, .68, .44], 0, 1.8),
-  item('dining-pendant-right', 'pendant', 499, 203, [.4, .74, .4], .25, 1.74),
+  item('dining-pendant-right', 'pendant-round', 499, 203, [.4, .74, .4], .25, 1.74),
   item('dining-radiator', 'radiator', 477, 150, [1.15, .65, .12]),
   item('dining-sideboard', 'sideboard', 388, 233, [1.05, .62, .32], Math.PI / 2),
   item('dining-tripod-lamp', 'floor-lamp', 401, 280, [.48, 1.55, .48]),

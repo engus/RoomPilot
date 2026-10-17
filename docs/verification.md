@@ -1,5 +1,13 @@
 # Milestone 1 verification
 
+## Individual fixture previews and photo refinement — 2026-10-18
+
+- Inspected 14 higher-quality HEIC references using ignored local decoded copies. Corrected the fridge placement beside the sink/entry and added separate window-side storage; total 42 scene instances. Refined the glass cabinet, curved upholstered backs/faucet and distinct woven pendant profiles. Countertop appliances no longer intersect the display frame or hob. No private image pixels, metadata, exact filenames or paths enter the product.
+- Added 21 independent preview targets: 19 light channels and illustrative TV/AC previews. Kitchen task strips/display are separate. Direct mesh clicks and keyboard-accessible list buttons use the same App-owned transient state; orbit movement above 4 px cannot toggle. Master lights leave device previews unchanged. A visible live status remains outside the collapsed list.
+- Preview states survive 2D/3D and appearance/outdoor/selection changes, but same-ID document imports reset them; exports contain geometry only. Lighting uses at most three deterministic aggregate clusters and retains contributions from fourth/later regions. A fresh reviewer found that overflow regions were initially truncated; a valid four-room regression was observed failing, then passing after folding all regions into the clusters. Follow-up review has no remaining findings.
+- Final unit suite: 156 tests across 17 files. Strict typechecks and production build pass. Full serial browser suite: 29 scenarios pass, including actual fixture raycast click, orbit-drag suppression, zero geometry buffer uploads during a light toggle, channel isolation, master behavior, remount persistence and same-ID reset. After the final countertop-appliance placement adjustment, repeated unit/type/build and both interactive browser scenarios pass.
+- Actual kitchen Day and living Night views inspected. Private backups, refined project export and screenshots remain ignored. Existing Vite warning persists: lazy 3D chunk 931.81 kB before gzip, 251.46 kB compressed; no new product dependencies.
+
 ## Photo-guided furnishing increment — 2026-10-18
 
 - The calibrated apartment demo contains 41 persisted procedural instances/assemblies in the shared room, including kitchen cabinetry/appliances, dining furniture, woven pendants, living TV/armchair/rug, radiator/ventilation details and corridor storage/mirror/bicycle/lighting. Dimensions and placement are approximate; original photograph pixels and identifying details are not bundled.

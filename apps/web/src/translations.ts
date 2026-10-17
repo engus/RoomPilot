@@ -1,4 +1,6 @@
 export const en = {
+  devicePendant: 'Pendant', deviceFloorLamp: 'Floor lamp', deviceSconce: 'Wall sconce', deviceCeiling: 'Ceiling light', deviceTrack: 'Linear light', deviceMirror: 'Mirror light', deviceDownlight: 'Hall downlight', deviceTaskLight: 'Countertop light', deviceDisplayLight: 'Display cabinet light', deviceTV: 'TV screen', deviceAC: 'Air conditioner',
+  previewElements: 'Preview elements', previewOn: 'On', previewOff: 'Off', previewClickHint: 'Click a light or device to switch its preview', previewLocalOnly: 'Local preview · no HA connection',
   cameraView: 'View', wholeApartment: 'Whole apartment',
   furnishingTitle: 'Interior preview', furniture: 'Furniture', previewLights: 'Preview lights', furnishingApproximate: 'Approximate furniture · local light preview',
   outdoorTitle: 'Outdoors', outdoorDay: 'Day', outdoorNight: 'Night', outdoorAuto: 'Auto', outdoorManual: 'Manual preview', outdoorChecking: 'Checking the sun…', outdoorAutoDay: 'Real time · Day', outdoorAutoTwilight: 'Real time · Twilight', outdoorAutoNight: 'Real time · Night', outdoorFallback: 'Auto unavailable · showing Day',
@@ -45,6 +47,8 @@ export const en = {
 } as const;
 export type TranslationKey = keyof typeof en;
 export const ru: Record<TranslationKey, string> = {
+  devicePendant: 'Подвес', deviceFloorLamp: 'Торшер', deviceSconce: 'Бра', deviceCeiling: 'Потолочный свет', deviceTrack: 'Линейный свет', deviceMirror: 'Подсветка зеркала', deviceDownlight: 'Свет коридора', deviceTaskLight: 'Подсветка столешницы', deviceDisplayLight: 'Подсветка витрины', deviceTV: 'Экран ТВ', deviceAC: 'Кондиционер',
+  previewElements: 'Элементы предпросмотра', previewOn: 'Вкл.', previewOff: 'Выкл.', previewClickHint: 'Нажмите на светильник или устройство для переключения', previewLocalOnly: 'Локальный предпросмотр · HA не подключён',
   cameraView: 'Ракурс', wholeApartment: 'Вся квартира',
   furnishingTitle: 'Интерьер', furniture: 'Мебель', previewLights: 'Свет в предпросмотре', furnishingApproximate: 'Мебель приблизительная · свет для просмотра',
   outdoorTitle: 'На улице', outdoorDay: 'День', outdoorNight: 'Ночь', outdoorAuto: 'Авто', outdoorManual: 'Ручной режим', outdoorChecking: 'Проверяем положение солнца…', outdoorAutoDay: 'Сейчас · День', outdoorAutoTwilight: 'Сейчас · Сумерки', outdoorAutoNight: 'Сейчас · Ночь', outdoorFallback: 'Авто недоступно · показан день',
