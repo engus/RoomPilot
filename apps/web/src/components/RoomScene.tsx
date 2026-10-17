@@ -5,6 +5,7 @@ import { Box3, Shape, DoubleSide, PerspectiveCamera, Vector3 } from 'three';
 import { getWallSections, type Project, type Room } from '@roompilot/domain';
 import { ROOM_COLORS } from './PlanCanvas';
 import OpeningMeshes from './OpeningMeshes';
+import ZoneMeshes from './ZoneMeshes';
 import { useInterface } from '../i18n';
 
 type SceneBounds = [number, number, number, number, number, number];
@@ -74,7 +75,7 @@ function RoomVolume({ room, project, scale, height, origin, color, selected, onS
   </group>;
 }
 
-export default function RoomScene({ project, selectedId, onSelect }: { project: Project; selectedId: string | null; onSelect: (id: string) => void }) {
+export default function RoomScene({ project, selectedId, onSelect, selectedZoneId = null, onZoneSelect = () => {} }: { project: Project; selectedId: string | null; onSelect: (id: string) => void; selectedZoneId?: string | null; onZoneSelect?: (id: string) => void }) {
   const { t, theme } = useInterface();
   const scale = project.calibration!.metresPerPixel;
   const width = project.source.width * scale, depth = project.source.height * scale;
@@ -92,6 +93,7 @@ export default function RoomScene({ project, selectedId, onSelect }: { project: 
       <color attach="background" args={[theme === 'dark' ? '#1b2621' : '#ebece5']} /><ambientLight intensity={1.5} /><directionalLight position={[8, 18, 10]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
         {project.rooms.map((room, i) => <RoomVolume key={room.id} room={room} project={project} scale={scale} height={project.ceilingHeightM!} origin={origin} color={ROOM_COLORS[i % ROOM_COLORS.length]} selected={selectedId === room.id} onSelect={() => onSelect(room.id)} />)}
         <OpeningMeshes project={project} origin={origin} onRoomSelect={onSelect} />
+        <ZoneMeshes project={project} origin={origin} selectedId={selectedZoneId} onSelect={onZoneSelect} />
         <gridHelper position={[0, -.025, 0]} args={[size * 3, Math.min(120, Math.ceil(size * 3)), theme === 'dark' ? '#52695a' : '#aab4a2', theme === 'dark' ? '#36483b' : '#c1c7b9']} />
         <CameraControls bounds={bounds} />
     </Canvas>

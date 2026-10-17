@@ -1,8 +1,10 @@
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowUpFromLine, Box, Check, ChevronRight, CircleHelp, FileImage, Layers2, LoaderCircle, Maximize2, MousePointer2, Plus, Ruler, ScanLine, ShieldCheck, Sparkles, SquareDashed, Trash2, Upload, X } from 'lucide-react';
-import { calibrateProject, createProject, findRoomOverlaps, getComputedArea, isReadyFor3D, placeOpening, removeRoom, ProjectSchema, validatePolygon, type OpeningKind, type Point, type Project, type Room } from '@roompilot/domain';
+import { calibrateProject, createProject, findRoomOverlaps, getComputedArea, getZoneArea, isReadyFor3D, placeOpening, removeRoom, ProjectSchema, validatePolygon, type OpeningKind, type Point, type Project, type Room, type Zone } from '@roompilot/domain';
 import PlanCanvas, { ROOM_COLORS, type EditorMode } from './components/PlanCanvas';
 import OpeningEditor from './components/OpeningEditor';
+import ZoneEditor from './components/ZoneEditor';
+import { ZONE_COLORS } from './zone-colors';
 import { createDemo } from './demo';
 import { readImage, recognize, recognizeOpenings, verifyImportedSource, PROVIDER_IDS, PROVIDER_NAMES, type ProviderId, type ProviderStatus, type ProviderHealth } from './api';
 import { MAX_PROJECT_BYTES, parseProjectText, updateCeiling } from './editor';
@@ -44,6 +46,7 @@ export default function App() {
   const [isDemo, setIsDemo] = useState(false);
   const [placementKind, setPlacementKind] = useState<OpeningKind | null>(null);
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null), jsonInput = useRef<HTMLInputElement>(null);
   const canvasColumn = useRef<HTMLDivElement>(null);
   const generation = useRef(0);
@@ -66,11 +69,24 @@ export default function App() {
     generation.current += 1;
     setProject(next); setSelectedId(next.rooms[0]?.id ?? null); setMode('select'); setView('2d'); setDraft([]); setCalibrationPoints([]);
     setKnownLength(''); setHeightInput(next.ceilingHeightM?.toString() ?? ''); setWarnings([]); setIsDemo(demo);
-    setPlacementKind(null); setSelectedOpeningId(null);
+    setPlacementKind(null); setSelectedOpeningId(null); setSelectedZoneId(null);
   };
-  const changeRoom = (room: Room) => setProject(current => current ? { ...current, rooms: current.rooms.map(item => item.id === room.id ? room : item) } : current);
+  const changeRoom = (room: Room) => {
+    if (!project) return;
+    const next = ProjectSchema.safeParse({ ...project, rooms: project.rooms.map(item => item.id === room.id ? room : item) });
+    if (next.success) setProject(next.data);
+    else notify(project.zones.some(zone => zone.roomId === room.id) ? 'roomZonesConflict' : 'invalidVertex', true);
+  };
   const cancelMode = () => { setMode('select'); setDraft([]); setCalibrationPoints([]); setPlacementKind(null); };
-  const beginOpening = (kind: OpeningKind | null) => { cancelMode(); setView('2d'); setPlacementKind(kind); if (kind) canvasColumn.current?.scrollIntoView({ block: 'center' }); };
+  const selectRoom = (id: string) => { cancelMode(); setSelectedId(id); setSelectedZoneId(null); };
+  const selectZone = (id: string) => { const zone = project?.zones.find(zone => zone.id === id); if (zone) { cancelMode(); setSelectedId(zone.roomId); setSelectedZoneId(id); setSelectedOpeningId(null); } };
+  const changeZone = (zone: Zone) => {
+    if (!project) return;
+    const next = ProjectSchema.safeParse({ ...project, zones: project.zones.map(item => item.id === zone.id ? zone : item) });
+    if (next.success) { setProject(next.data); notify('zoneUpdated'); } else notify('invalidZone', true);
+  };
+  const beginOpening = (kind: OpeningKind | null) => { cancelMode(); setSelectedZoneId(null); setView('2d'); setPlacementKind(kind); if (kind) canvasColumn.current?.scrollIntoView({ block: 'center' }); };
+  const beginZone = () => { cancelMode(); setView('2d'); setSelectedZoneId(null); setSelectedOpeningId(null); setMode('draw-zone'); canvasColumn.current?.scrollIntoView({ block: 'center' }); };
   function addOpening(roomId: string, edgeIndex: number, position: number) {
     if (!project || !placementKind || busy || roomId !== selectedId) return;
     try {
@@ -135,7 +151,7 @@ export default function App() {
     setTimeout(() => URL.revokeObjectURL(url), 1000); notify('projectExported');
   }
   function addPoint(point: Point) {
-    if (mode === 'draw') setDraft(current => current.length < 100 ? [...current, point] : current);
+    if (mode === 'draw' || mode === 'draw-zone') setDraft(current => current.length < 100 ? [...current, point] : current);
     if (mode === 'calibrate') setCalibrationPoints(current => current.length >= 2 ? [point] : [...current, point]);
   }
   function finishRoom() {
@@ -143,6 +159,13 @@ export default function App() {
     if (project.rooms.length >= 100) { notify('tooManyRooms', true); return; }
     const room: Room = { id: crypto.randomUUID(), name: t('roomNumber', { number: project.rooms.length + 1 }), polygon: draft, reportedAreaM2: null };
     setProject({ ...project, rooms: [...project.rooms, room] }); setSelectedId(room.id); cancelMode(); notify('roomAdded');
+  }
+  function finishZone() {
+    if (!project || !selectedId) return;
+    const zone: Zone = { id: crypto.randomUUID(), roomId: selectedId, name: t('zoneNumber', { number: project.zones.length + 1 }), polygon: draft };
+    const next = ProjectSchema.safeParse({ ...project, zones: [...project.zones, zone] });
+    if (!next.success) { notify('invalidZone', true); return; }
+    setProject(next.data); cancelMode(); setSelectedZoneId(zone.id); notify('zoneAdded');
   }
   function confirmScale() {
     if (!project || calibrationPoints.length !== 2) return;
@@ -177,18 +200,18 @@ export default function App() {
       <section className="editor-workspace" aria-label={t('editor')}>
         <aside className="room-sidebar"><div className="panel-heading"><h2>{t('rooms')}</h2><span className="count-badge">{project?.rooms.length ?? 0}</span></div>
           <p className="panel-description">{t('roomsDescription')}</p>
-          <div className="room-list">{project?.rooms.map((room, i) => <button key={room.id} className={`room-item ${selectedId === room.id ? 'selected' : ''}`} onClick={() => setSelectedId(room.id)}><span className="room-swatch" style={{ background: ROOM_COLORS[i % ROOM_COLORS.length] }}>{String(i + 1).padStart(2, '0')}</span><span><strong>{room.name}</strong><small>{room.reportedAreaM2 === null ? t('reportedUnknown') : t('areaFromPlan', { area: area(room.reportedAreaM2) })}</small></span><ChevronRight size={14} /></button>)}</div>
+          <div className="room-list">{project?.rooms.map((room, i) => <div key={room.id}><button className={`room-item ${selectedId === room.id ? 'selected' : ''}`} onClick={() => selectRoom(room.id)}><span className="room-swatch" style={{ background: ROOM_COLORS[i % ROOM_COLORS.length] }}>{String(i + 1).padStart(2, '0')}</span><span><strong>{room.name}</strong><small>{room.reportedAreaM2 === null ? t('reportedUnknown') : t('areaFromPlan', { area: area(room.reportedAreaM2) })}</small></span><ChevronRight size={14} /></button><div className="zone-list">{project.zones.filter(zone => zone.roomId === room.id).map(zone => <button key={zone.id} aria-label={t('selectZone', { name: zone.name })} className={selectedZoneId === zone.id ? 'selected' : ''} onClick={() => selectZone(zone.id)}><span className="zone-dot" style={{ background: ZONE_COLORS[project.zones.indexOf(zone) % ZONE_COLORS.length] }} /><span>{zone.name}<small>{area(getZoneArea(zone, project))}</small></span></button>)}</div></div>)}</div>
           {!project?.rooms.length && <div className="sidebar-empty"><SquareDashed size={28} strokeWidth={1.3} /><p>{project ? t('roomsManualHint') : t('roomsUploadHint')}</p></div>}
-          <button className="button add-room" disabled={!project || busy || view === '3d'} onClick={() => { cancelMode(); setMode('draw'); }}><Plus size={17} />{t('addRoom')}</button>
+          <button className="button add-room" disabled={!project || busy || view === '3d'} onClick={() => { cancelMode(); setSelectedZoneId(null); setMode('draw'); }}><Plus size={17} />{t('addRoom')}</button>
           <div className="sidebar-bottom"><div className="status-heading"><ShieldCheck size={16} /><span>{t('localProject')}</span></div><p>{t('noAutosave')}</p></div>
         </aside>
         <div className="canvas-column" ref={canvasColumn}><div className="canvas-toolbar"><div className="segmented" aria-label={t('viewingMode')}><button className={view === '2d' ? 'active' : ''} onClick={() => setView('2d')}><SquareDashed size={15} />2D</button><button className={view === '3d' ? 'active' : ''} disabled={!ready} title={missing.join(' · ')} onClick={() => { cancelMode(); setView('3d'); }}><Box size={15} />3D</button></div><span className="canvas-file">{project ? <><FileImage size={14} />{project.source.width} × {project.source.height} px</> : t('workspace')}</span><span className="toolbar-badge">{isDemo ? t('demo') : project ? t('draft') : t('newProject')}</span></div>
           <div className="canvas-area">
-            {!project ? <div className="empty-canvas"><div className="empty-illustration"><div className="plan-paper"><div className="paper-room room-one" /><div className="paper-room room-two" /><div className="paper-room room-three" /><div className="paper-door" /><span className="paper-cross">+</span></div><span className="illustration-badge"><Layers2 size={23} strokeWidth={1.5} /></span></div><span className="eyebrow">{t('cleanSlate')}</span><h2>{t('giveVolume')}</h2><p>{t('emptyPlanHint')}</p><button className="button primary" onClick={() => fileInput.current?.click()} disabled={busy}><Plus size={17} />{t('selectImage')}</button><span className="file-hint">{t('fileHint')}</span><button className="text-button" onClick={openDemo} disabled={busy}>{t('exploreDemo')} <ChevronRight size={14} /></button></div> : view === '2d' ? <PlanCanvas project={project} selectedId={selectedId} mode={mode} draft={draft} calibrationPoints={calibrationPoints} onSelect={setSelectedId} onPoint={addPoint} onEdit={changeRoom} onError={() => notify('invalidVertex', true)} placementKind={placementKind} onWallClick={addOpening} selectedOpeningId={selectedOpeningId} onOpeningSelect={setSelectedOpeningId} /> : <SceneBoundary key={project.id}><Suspense fallback={<div className="loading-scene"><LoaderCircle className="spin" />{t('loading3D')}</div>}><RoomScene project={project} selectedId={selectedId} onSelect={setSelectedId} /></Suspense></SceneBoundary>}
+            {!project ? <div className="empty-canvas"><div className="empty-illustration"><div className="plan-paper"><div className="paper-room room-one" /><div className="paper-room room-two" /><div className="paper-room room-three" /><div className="paper-door" /><span className="paper-cross">+</span></div><span className="illustration-badge"><Layers2 size={23} strokeWidth={1.5} /></span></div><span className="eyebrow">{t('cleanSlate')}</span><h2>{t('giveVolume')}</h2><p>{t('emptyPlanHint')}</p><button className="button primary" onClick={() => fileInput.current?.click()} disabled={busy}><Plus size={17} />{t('selectImage')}</button><span className="file-hint">{t('fileHint')}</span><button className="text-button" onClick={openDemo} disabled={busy}>{t('exploreDemo')} <ChevronRight size={14} /></button></div> : view === '2d' ? <PlanCanvas project={project} selectedId={selectedId} mode={mode} draft={draft} calibrationPoints={calibrationPoints} onSelect={selectRoom} onPoint={addPoint} onEdit={changeRoom} onError={() => notify(selectedZoneId ? 'invalidZone' : 'invalidVertex', true)} placementKind={placementKind} onWallClick={addOpening} selectedOpeningId={selectedOpeningId} onOpeningSelect={id => { setSelectedZoneId(null); setSelectedOpeningId(id); }} selectedZoneId={selectedZoneId} onZoneSelect={selectZone} onZoneEdit={changeZone} /> : <SceneBoundary key={project.id}><Suspense fallback={<div className="loading-scene"><LoaderCircle className="spin" />{t('loading3D')}</div>}><RoomScene project={project} selectedId={selectedId} onSelect={selectRoom} selectedZoneId={selectedZoneId} onZoneSelect={selectZone} /></Suspense></SceneBoundary>}
             {project && view === '2d' && <div className="canvas-corner"><span><span className="green-dot" />{project.calibration ? t('pixelScale', { value: project.calibration.metresPerPixel.toLocaleString(language, { maximumFractionDigits: 4 }) }) : t('scaleMissing')}</span><Maximize2 size={15} /></div>}
           </div>
           <div className={`canvas-instructions ${mode !== 'select' ? 'instruction-active' : ''}`}>
-            {placementKind ? <><MousePointer2 size={15} /><span>{t('openingPlacementHint')}</span></> : mode === 'draw' ? <><Plus size={16} /><span>{t('drawInstruction', { count: draft.length })}</span><button className="text-button" disabled={draft.length < 3} onClick={finishRoom}>{t('finishRoom')}</button><button className="icon-button" aria-label={t('cancelDrawing')} onClick={cancelMode}><X size={16} /></button></> : mode === 'calibrate' ? <><Ruler size={16} /><span>{t('calibrationInstruction', { count: calibrationPoints.length })}</span><button className="icon-button" aria-label={t('cancelCalibration')} onClick={cancelMode}><X size={16} /></button></> : <><MousePointer2 size={15} /><span>{view === '3d' ? t('sceneSelectInstruction') : project ? t('planSelectInstruction') : t('localImageHint')}</span></>}
+            {placementKind ? <><MousePointer2 size={15} /><span>{t('openingPlacementHint')}</span></> : mode === 'draw-zone' ? <><Plus size={16} /><span>{t('zoneDrawInstruction', { count: draft.length })}</span><button className="text-button" disabled={draft.length < 3} onClick={finishZone}>{t('finishZone')}</button><button className="icon-button" aria-label={t('cancelZoneDrawing')} onClick={cancelMode}><X size={16} /></button></> : mode === 'draw' ? <><Plus size={16} /><span>{t('drawInstruction', { count: draft.length })}</span><button className="text-button" disabled={draft.length < 3} onClick={finishRoom}>{t('finishRoom')}</button><button className="icon-button" aria-label={t('cancelDrawing')} onClick={cancelMode}><X size={16} /></button></> : mode === 'calibrate' ? <><Ruler size={16} /><span>{t('calibrationInstruction', { count: calibrationPoints.length })}</span><button className="icon-button" aria-label={t('cancelCalibration')} onClick={cancelMode}><X size={16} /></button></> : <><MousePointer2 size={15} /><span>{view === '3d' ? t('sceneSelectInstruction') : project ? t('planSelectInstruction') : t('localImageHint')}</span></>}
           </div>
         </div>
         <aside className="properties-sidebar"><div className="panel-heading"><h2>{t('parameters')}</h2><CircleHelp size={17} /></div>
@@ -198,10 +221,11 @@ export default function App() {
           </section>
           <section className="property-section"><div className="section-label"><span>02</span><h3>{t('ceilingHeight')}</h3>{project?.ceilingHeightConfirmed && <Check size={16} className="confirmed-icon" />}</div><p>{project?.ceilingHeightM === null || !project ? t('ceilingUnknown') : project.ceilingHeightConfirmed ? t('heightConfirmed') : t('heightReview')}</p><label className="visually-hidden" htmlFor="ceiling-height">{t('ceilingHeightLabel')}</label><div className="input-with-unit"><input id="ceiling-height" type="number" min="1.5" max="10" step="0.01" value={heightInput} placeholder={t('unknown')} disabled={!project} onChange={event => { const value = event.target.value; setHeightInput(value); setView('2d'); if (project) { const number = Number(value); const fits = project.openings.every(opening => opening.sillHeightM + opening.heightM <= number + 1e-8); setProject(updateCeiling(project, Number.isFinite(number) && number >= 1.5 && number <= 10 && fits ? value : '')); } }} /><span>{language === 'ru' ? 'м' : 'm'}</span></div><button className="button outline full" disabled={!project || !heightInput} onClick={confirmHeight}>{project?.ceilingHeightConfirmed ? <Check size={15} /> : null}{t('confirmHeight')}</button></section>
           <section className="property-section room-properties"><div className="section-label"><span>03</span><h3>{selected ? t('selectedRoom') : t('roomProperties')}</h3></div>
-            {selected ? <div className="inline-form"><label htmlFor="room-name">{t('roomName')}</label><input key={`${project!.id}-${selected.id}`} id="room-name" maxLength={120} defaultValue={selected.name} onChange={event => { if (event.target.value.trim()) changeRoom({ ...selected, name: event.target.value }); }} onBlur={event => { const name = event.target.value.trim(); event.target.value = name || selected.name; if (name) changeRoom({ ...selected, name }); }} /><label htmlFor="reported-area">{t('reportedArea')}</label><input id="reported-area" type="number" min="0.01" max="100000" step="any" placeholder={t('unknown')} value={selected.reportedAreaM2 ?? ''} onChange={event => { const value = event.target.value; const numeric = Number(value); if (value === '' || (numeric > 0 && numeric <= 100_000)) changeRoom({ ...selected, reportedAreaM2: value === '' ? null : numeric }); }} /><div className="computed-area"><span>{t('computedArea')}</span><strong>{area(computed)}</strong></div>{difference && <p className="area-warning">{t('areaDifference')}</p>}<button className="text-button danger small" onClick={() => { if (project) { setProject(removeRoom(project, selected.id)); setSelectedId(project.rooms.find(room => room.id !== selected.id)?.id ?? null); if (project.rooms.length === 1) setView('2d'); } }}><Trash2 size={14} />{t('removeRoom')}</button></div> : <p>{t('selectRoomHint')}</p>}
+            {selected ? <div className="inline-form"><label htmlFor="room-name">{t('roomName')}</label><input key={`${project!.id}-${selected.id}`} id="room-name" maxLength={120} defaultValue={selected.name} onChange={event => { if (event.target.value.trim()) changeRoom({ ...selected, name: event.target.value }); }} onBlur={event => { const name = event.target.value.trim(); event.target.value = name || selected.name; if (name) changeRoom({ ...selected, name }); }} /><label htmlFor="reported-area">{t('reportedArea')}</label><input id="reported-area" type="number" min="0.01" max="100000" step="any" placeholder={t('unknown')} value={selected.reportedAreaM2 ?? ''} onChange={event => { const value = event.target.value; const numeric = Number(value); if (value === '' || (numeric > 0 && numeric <= 100_000)) changeRoom({ ...selected, reportedAreaM2: value === '' ? null : numeric }); }} /><div className="computed-area"><span>{t('computedArea')}</span><strong>{area(computed)}</strong></div>{difference && <p className="area-warning">{t('areaDifference')}</p>}<button className="text-button danger small" onClick={() => { if (project) { setProject(removeRoom(project, selected.id)); setSelectedZoneId(null); setSelectedId(project.rooms.find(room => room.id !== selected.id)?.id ?? null); if (project.rooms.length === 1) setView('2d'); } }}><Trash2 size={14} />{t('removeRoom')}</button></div> : <p>{t('selectRoomHint')}</p>}
           </section>
         </aside>
       </section>
+      {project && <ZoneEditor project={project} roomId={selectedId} selectedZoneId={selectedZoneId} disabled={busy} onAdd={beginZone} onEdit={changeZone} onDelete={id => { setProject({ ...project, zones: project.zones.filter(zone => zone.id !== id) }); setSelectedZoneId(null); notify('zoneUpdated'); }} />}
       {project && <OpeningEditor project={project} selectedRoomId={selectedId} selectedOpeningId={selectedOpeningId} placementKind={placementKind} disabled={busy} onSelect={setSelectedOpeningId} onPlacement={beginOpening} onChange={next => { setProject(next); notify('openingUpdated'); }} onError={() => notify('invalidOpening', true)} />}
       <section className="below-workspace">
         <div className="recognition-card">

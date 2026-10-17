@@ -117,6 +117,7 @@ export function resizeOpening(project: Project, id: string, widthM: number): Pro
 export function removeRoom(project: Project, id: string): Project {
   return ProjectSchema.parse({
     ...project, rooms: project.rooms.filter(room => room.id !== id),
+    zones: project.zones.filter(zone => zone.roomId !== id),
     openings: project.openings.filter(opening => opening.spans.every(span => span.roomId !== id)),
   });
 }

@@ -44,7 +44,7 @@ describe('floor geometry', () => {
     const p = calibrateProject(make(), [polygon[0], polygon[1]], 5);
     p.calibration!.metresPerPixel = 10;
     expect(ProjectSchema.safeParse(p).success).toBe(false);
-    expect(ProjectSchema.safeParse({ ...make(), schemaVersion: 3 }).success).toBe(false);
+    expect(ProjectSchema.safeParse({ ...make(), schemaVersion: 4 }).success).toBe(false);
   });
   it('checks calibration accuracy relative to a very small physical length', () => {
     const p = calibrateProject(make(), [polygon[0], polygon[1]], .000001);

@@ -3,13 +3,14 @@ export * from './overlaps';
 export * from './schema';
 export * from './openings';
 export * from './recognized-openings';
+export * from './zones';
 
 import { polygonArea, type Point } from './geometry';
 import { ProjectSchema, type Project, type Room, type Source, type Recognition } from './schema';
 
 export function createProject(source: Source, recognition: Recognition): Project {
   return ProjectSchema.parse({
-    schemaVersion: 2, openings: [], id: crypto.randomUUID(), name: 'Моя квартира', source,
+    schemaVersion: 3, openings: [], zones: [], id: crypto.randomUUID(), name: 'Моя квартира', source,
     rooms: recognition.rooms.map((r, i) => ({
       id: crypto.randomUUID(), name: r.name?.trim() || `Комната ${i + 1}`,
       reportedAreaM2: r.reportedAreaM2,

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { validatePolygon } from './geometry';
+import { isPolygonWithinRoom, zonePolygonsOverlap } from './zones';
 
 export const PointSchema = z.object({ x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative() }).strict();
 const PolygonSchema = z.array(PointSchema).min(3).max(100).refine(validatePolygon, 'Некорректный контур комнаты');
@@ -11,6 +12,10 @@ export const SourceSchema = z.object({
 export const RoomSchema = z.object({
   id: z.string().min(1).max(100), name: z.string().trim().min(1).max(120),
   polygon: PolygonSchema, reportedAreaM2: z.number().finite().positive().max(100_000).nullable(),
+}).strict();
+export const ZoneSchema = z.object({
+  id: z.string().min(1).max(100), roomId: z.string().min(1).max(100),
+  name: z.string().trim().min(1).max(120), polygon: PolygonSchema,
 }).strict();
 const CalibrationSchema = z.object({
   points: z.tuple([PointSchema, PointSchema]),
@@ -42,14 +47,21 @@ const projectFields = {
   ceilingHeightConfirmed: z.boolean(),
 };
 const LegacyProjectSchema = z.object({ schemaVersion: z.literal(1), ...projectFields }).strict();
-const CurrentProjectSchema = z.object({ schemaVersion: z.literal(2), ...projectFields, openings: z.array(OpeningSchema).max(200) }).strict();
-export const ProjectSchema = z.union([CurrentProjectSchema, LegacyProjectSchema])
-  .transform(value => value.schemaVersion === 1 ? { ...value, schemaVersion: 2 as const, openings: [] } : value)
+const Version2ProjectSchema = z.object({ schemaVersion: z.literal(2), ...projectFields, openings: z.array(OpeningSchema).max(200) }).strict();
+const CurrentProjectSchema = z.object({ schemaVersion: z.literal(3), ...projectFields, openings: z.array(OpeningSchema).max(200), zones: z.array(ZoneSchema).max(200) }).strict();
+export const ProjectSchema = z.union([CurrentProjectSchema, Version2ProjectSchema, LegacyProjectSchema])
+  .transform(value => value.schemaVersion === 3 ? value : { ...value, schemaVersion: 3 as const, openings: 'openings' in value ? value.openings : [], zones: [] })
   .superRefine((value, ctx) => {
-  const points = [...value.rooms.flatMap(r => r.polygon), ...(value.calibration?.points ?? [])];
+  const points = [...value.rooms.flatMap(r => r.polygon), ...value.zones.flatMap(zone => zone.polygon), ...(value.calibration?.points ?? [])];
   if (points.some(p => p.x > value.source.width || p.y > value.source.height)) ctx.addIssue({ code: 'custom', message: 'Точка за пределами изображения' });
   if (new Set(value.rooms.map(r => r.id)).size !== value.rooms.length) ctx.addIssue({ code: 'custom', message: 'Повторяющийся идентификатор комнаты' });
   if (value.ceilingHeightConfirmed && value.ceilingHeightM === null) ctx.addIssue({ code: 'custom', message: 'Не указана высота потолка' });
+  if (new Set(value.zones.map(zone => zone.id)).size !== value.zones.length) ctx.addIssue({ code: 'custom', message: 'Duplicate zone ID.' });
+  value.zones.forEach((zone, index) => {
+    const parent = value.rooms.find(room => room.id === zone.roomId);
+    if (!parent || !isPolygonWithinRoom(zone.polygon, parent.polygon)) ctx.addIssue({ code: 'custom', path: ['zones', index], message: 'Zone must remain inside its parent room.' });
+    if (value.zones.slice(0, index).some(other => other.roomId === zone.roomId && zonePolygonsOverlap(other.polygon, zone.polygon))) ctx.addIssue({ code: 'custom', path: ['zones', index], message: 'Zone interiors must not overlap.' });
+  });
   const openingIds = new Set<string>();
   const edgeSpans = new Map<string, OpeningSpan[]>();
   for (const opening of value.openings) {
@@ -86,3 +98,4 @@ export type Recognition = z.infer<typeof RecognitionSchema>;
 export type Opening = z.infer<typeof OpeningSchema>;
 export type OpeningSpan = z.infer<typeof OpeningSpanSchema>;
 export type OpeningKind = z.infer<typeof OpeningKindSchema>;
+export type Zone = z.infer<typeof ZoneSchema>;

@@ -159,11 +159,11 @@ const document = () => ({ ...legacy(), schemaVersion: 2, openings: [opening()] }
 
 describe('opening document versions and validation', () => {
   it('migrates a strict v1 document without changing any prior data', () => {
-    expect(ProjectSchema.parse(legacy())).toEqual({ ...legacy(), schemaVersion: 2, openings: [] });
+    expect(ProjectSchema.parse(legacy())).toEqual({ ...legacy(), schemaVersion: 3, openings: [], zones: [] });
   });
   it('round-trips v2 openings and rejects unknown fields and versions', () => {
-    expect(ProjectSchema.parse(JSON.parse(JSON.stringify(document())))).toEqual(document());
-    for (const input of [{ ...legacy(), openings: [] }, { ...document(), surprise: true }, { ...document(), schemaVersion: 3 }]) {
+    expect(ProjectSchema.parse(JSON.parse(JSON.stringify(document())))).toEqual({ ...document(), schemaVersion: 3, zones: [] });
+    for (const input of [{ ...legacy(), openings: [] }, { ...document(), surprise: true }, { ...document(), schemaVersion: 4 }]) {
       expect(ProjectSchema.safeParse(input).success).toBe(false);
     }
   });

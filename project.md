@@ -20,9 +20,12 @@ Documentation is written in English. The interface supports English and Russian;
 6. Request ceiling height when absent. A detected value also requires user confirmation and remains editable.
 7. Offer 2D and simplified 3D previews, plus versioned JSON project export/import. Physical scale and confirmed ceiling height are prerequisites for 3D.
 8. Report missing credentials or provider failure explicitly. Demo mode is a separate, labelled action.
-9. Add door, window and passage objects on room edges, edit their dimensions, and preview actual wall apertures. Version 1 imports migrate to version 2; new exports preserve openings.
+9. Add door, window and passage objects on room edges, edit their dimensions, and preview actual wall apertures. Version 1/2 imports migrate to version 3; new exports preserve openings and zones.
+10. Divide a physical room into named wall-free zones; edit their polygons, inspect calibrated areas and select them in 2D/3D. Preserve physical room walls and door/window attachments.
 
 Interior-photo reconstruction, furniture, HA control, multiple floors, native/PWA packaging, and architectural accuracy are outside this first iteration. The owner subsequently authorized openings: these now have manual placement and 2D/3D rendering. OpenRouter now recognizes doors and windows alongside rooms, or adds them to an existing plan without replacing its geometry. Other providers remain room-only.
+
+The public demo uses the owner-authorized assisted apartment geometry, redrawn in code, with their confirmed room names: balcony, parents’ bedroom, children’s bedroom, toilet, storage, and the shared kitchen/living/corridor space. The three functions in the shared space are separate zones. The original floor-plan pixels and annotated image remain private. Demo calibration and a 2.5 m ceiling are supplied for immediate 3D.
 
 ## Architecture
 

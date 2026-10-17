@@ -24,6 +24,7 @@ const routerConfig = { openrouter: { apiKey: 'key', model: 'vision' } };
 
 it('appends recognized openings without replacing metadata or manual openings, including repeated detection', async () => {
   const project = await openingsFixture();
+  project.zones = [{ id: 'kitchen-zone', roomId: project.rooms[0].id, name: 'Kitchen', polygon: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }] }];
   project.openings = [{ id: 'manual', kind: 'door', heightM: 2.2, sillHeightM: 0, spans: [{ roomId: project.rooms[0].id, edgeIndex: 1, start: .1, end: .7 }] }];
   vi.stubGlobal('fetch', async () => routerResponse([candidate, { invalid: true }]));
   const server = app({ config: routerConfig });
