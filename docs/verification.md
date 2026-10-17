@@ -48,6 +48,14 @@ The initial baseline used mocked providers only. A subsequent owner-authorized O
 - During development, adding a React hook reset the agent's open editor state. The earlier ignored exported draft was available for recovery; the owner's latest six-room response was not saved locally and could not be recovered from a screenshot. Added an agent rule to export the active document before changes that can trigger hot updates or reloads. This is a workflow safeguard, not project autosave.
 - Reimported the earlier saved draft in the live editor and visually verified its overlap warning. Independent code review found no blocking issue; its extreme 100-room/100-vertex containment benchmark took about 675 ms on this host. Geometry checks are memoized by the room list, so name/area edits can also repeat that work; low-power hardware performance remains unverified.
 
+## OpenRouter new-prompt live comparison
+
+- The owner explicitly requested another recognition of the existing plan using the expanded extraction instructions. Exported the active document to an ignored local checkpoint before testing. No frontend source or dependency changes were needed.
+- One request through the current adapter used `dots-studio/dots-3-note-preview:free` with reasoning disabled. OpenRouter reported the same model ID and AtlasCloud provider, HTTP 200 and finish reason `stop`. This avoids the variable model choice of `openrouter/free`, although one run is not a controlled quality benchmark.
+- The response was complete JSON and contained six spaces, including a previously omitted balcony. Its main polygon failed topology validation, so the adapter returned `invalid_geometry` and no new project was applied.
+- Visual comparison and diagnostic interior samples found that the omitted corridor was still uncovered and the small room still lay within the raw main outline. A printed area was also misread. The more detailed main polygon introduced self-intersection rather than a usable wall trace; the new prompt did not resolve the two requested defects in this run.
+- Kept the prior valid project intact. The raw response and clearly labelled diagnostic overlay remain local and ignored; no private image, coordinates, credentials, or exported project are committed. No retry, fallback, or automatic repair was performed.
+
 ## Workspace rename
 
 The requested target folder name is `RoomPilot`. In-session rename attempts were rejected by Windows because VS Code and Codex runtime processes held the original directory open. Closing the VS Code folder did not release the Codex handles. No process was forcibly terminated and the source directory remains intact.
