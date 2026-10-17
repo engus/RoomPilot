@@ -1,4 +1,5 @@
-import { RecognitionSchema, type Recognition, type Source } from '@roompilot/domain';
+import { RecognitionSchema, OpeningRecognitionSchema, type OpeningRecognition, type Project, type Recognition, type Source } from '@roompilot/domain';
+import { openingArraySchema, openingOnlySchema, openingInstructions } from './opening-prompt';
 
 export const PROVIDER_IDS = ['openai', 'gemini', 'openrouter'] as const;
 export type ProviderId = typeof PROVIDER_IDS[number];
@@ -81,14 +82,43 @@ const instructions = [
 ].join(' ');
 const prompt = 'Recognize the room outlines and explicitly printed metadata in this floor plan.';
 
+interface RequestFormat { schema: unknown; instructions: string; prompt: string }
+const routerFormat: RequestFormat = {
+  schema: { ...recognitionJsonSchema, required: [...recognitionJsonSchema.required, 'openings'], properties: { ...recognitionJsonSchema.properties, openings: openingArraySchema } },
+  instructions: `${instructions} ${openingInstructions}`, prompt: `${prompt} Include visible doors and windows attached to the returned room edges.`,
+};
+
+export async function recognizeOpenings(project: Project, config: RecognitionConfig, signal?: AbortSignal): Promise<OpeningRecognition> {
+  const rooms = project.rooms.map((room, roomIndex) => ({ roomIndex, polygon: room.polygon.map(point => ({ x: point.x / project.source.width, y: point.y / project.source.height })) }));
+  const result = await requestDraft(project.source, config, signal, 'openrouter', {
+    schema: openingOnlySchema, instructions: `${openingInstructions} The supplied normalized room outlines are fixed reference geometry. Do not redraw rooms. Return opening endpoint coordinates in that same image coordinate system.`,
+    prompt: `Find doors and windows in this image using these fixed normalized room outlines: ${JSON.stringify(rooms)}`,
+  });
+  const parsed = OpeningRecognitionSchema.safeParse(result);
+  if (!parsed.success) throw new RecognitionError(502, 'Invalid opening recognition draft.', 'invalid_result');
+  return parsed.data;
+}
+
 export async function recognizeImage(image: Source, config: RecognitionConfig, signal?: AbortSignal, provider: ProviderId = 'openai'): Promise<Recognition> {
+  const result = await requestDraft(image, config, signal, provider);
+  const draft = RecognitionSchema.safeParse(result);
+  if (!draft.success) {
+    if (draft.error.issues.some(issue => issue.code === 'custom' && issue.path.length === 3 && issue.path[0] === 'rooms' && issue.path[2] === 'polygon')) {
+      throw new RecognitionError(502, 'The provider returned invalid room outlines.', 'invalid_geometry');
+    }
+    throw new RecognitionError(502, 'The provider did not return a valid recognition draft.', 'invalid_result');
+  }
+  return draft.data;
+}
+
+async function requestDraft(image: Source, config: RecognitionConfig, signal: AbortSignal | undefined, provider: ProviderId, format?: RequestFormat): Promise<unknown> {
   if (!isProviderId(provider)) throw new RecognitionError(400, 'Unknown recognition provider.', 'invalid_provider');
   const credentials = credentialsFor(config, provider);
   if (!providerConfigured(config, provider)) throw new RecognitionError(503, 'Configure the selected provider key and model on the server.', 'provider_unconfigured');
   const timeout = AbortSignal.timeout(config.requestTimeoutMs ?? 45_000);
   const cancellation = signal ? AbortSignal.any([signal, timeout]) : timeout;
   try {
-    const request = providerRequest(image, credentials, provider, config.openrouter?.reasoning === false);
+    const request = providerRequest(image, credentials, provider, config.openrouter?.reasoning === false, format);
     const response = await fetch(request.url, { method: 'POST', redirect: 'error', signal: cancellation, headers: request.headers, body: JSON.stringify(request.body) });
     // Both successful and error responses are untrusted and bounded. Raw errors never leave the adapter.
     let result: unknown;
@@ -98,14 +128,7 @@ export async function recognizeImage(image: Source, config: RecognitionConfig, s
       throw providerFailure(response.status, null);
     }
     if (!response.ok) throw providerFailure(response.status, result);
-    const draft = RecognitionSchema.safeParse(JSON.parse(providerText(result, provider)));
-    if (!draft.success) {
-      if (draft.error.issues.some(issue => issue.code === 'custom' && issue.path.length === 3 && issue.path[0] === 'rooms' && issue.path[2] === 'polygon')) {
-        throw new RecognitionError(502, 'The provider returned invalid room outlines.', 'invalid_geometry');
-      }
-      throw new RecognitionError(502, 'The provider did not return a valid recognition draft.', 'invalid_result');
-    }
-    return draft.data;
+    return JSON.parse(providerText(result, provider));
   } catch (error) {
     if (cancellation.aborted) throw new RecognitionError(504, 'Recognition timed out. Try again.', 'recognition_timeout');
     if (error instanceof RecognitionError) throw error;
@@ -113,7 +136,7 @@ export async function recognizeImage(image: Source, config: RecognitionConfig, s
   }
 }
 
-function providerRequest(image: Source, credentials: ProviderCredentials, provider: ProviderId, disableReasoning: boolean) {
+function providerRequest(image: Source, credentials: ProviderCredentials, provider: ProviderId, disableReasoning: boolean, format: RequestFormat = routerFormat) {
   const authorization = { Authorization: `Bearer ${credentials.apiKey!.trim()}`, 'Content-Type': 'application/json' };
   const model = credentials.model!.trim();
   if (provider === 'gemini') {
@@ -139,8 +162,8 @@ function providerRequest(image: Source, credentials: ProviderCredentials, provid
     body: {
       model, max_tokens: 16_000, stream: false,
       ...(disableReasoning ? { reasoning: { enabled: false } } : {}),
-      messages: [{ role: 'system', content: instructions }, { role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: image.dataUrl } }] }],
-      response_format: { type: 'json_schema', json_schema: { name: 'floor_plan_draft', strict: true, schema: recognitionJsonSchema } },
+      messages: [{ role: 'system', content: format.instructions }, { role: 'user', content: [{ type: 'text', text: format.prompt }, { type: 'image_url', image_url: { url: image.dataUrl } }] }],
+      response_format: { type: 'json_schema', json_schema: { name: 'floor_plan_draft', strict: true, schema: format.schema } },
       provider: { require_parameters: true },
     },
   };

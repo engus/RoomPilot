@@ -71,6 +71,7 @@ export const ProjectSchema = z.union([CurrentProjectSchema, LegacyProjectSchema]
 });
 
 export const RecognitionSchema = z.object({
+  openings: z.array(z.unknown()).max(200).optional(),
   rooms: z.array(z.object({
     name: z.string().max(120).nullable(), reportedAreaM2: z.number().positive().max(100_000).nullable(),
     polygon: z.array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict()).min(3).max(100).refine(validatePolygon, 'Некорректный контур'),

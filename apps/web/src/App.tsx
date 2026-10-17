@@ -4,7 +4,7 @@ import { calibrateProject, createProject, findRoomOverlaps, getComputedArea, isR
 import PlanCanvas, { ROOM_COLORS, type EditorMode } from './components/PlanCanvas';
 import OpeningEditor from './components/OpeningEditor';
 import { createDemo } from './demo';
-import { readImage, recognize, verifyImportedSource, PROVIDER_IDS, PROVIDER_NAMES, type ProviderId, type ProviderStatus, type ProviderHealth } from './api';
+import { readImage, recognize, recognizeOpenings, verifyImportedSource, PROVIDER_IDS, PROVIDER_NAMES, type ProviderId, type ProviderStatus, type ProviderHealth } from './api';
 import { MAX_PROJECT_BYTES, parseProjectText, updateCeiling } from './editor';
 import { useInterface } from './i18n';
 import { ApiError } from './api';
@@ -93,17 +93,23 @@ export default function App() {
     } catch (error) { if (generation.current === token) notify(error instanceof ApiError ? error.key : 'planLoadFailed', true); }
     finally { if (busyOperation.current === operation) setBusy(false); }
   }
-  async function runRecognition() {
+  async function runRecognition(openingsOnly = false) {
     if (!project || busy) return;
     const token = generation.current; const startedAtRevision = revision.current;
     const operation = ++busyOperation.current; setBusy(true); setMessage(null);
     try {
-      const blob = await (await fetch(project.source.dataUrl)).blob();
-      const mime = blob.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
-      const result = await recognize(new File([blob], mime === 'image/jpeg' ? 'plan.jpeg' : 'plan.png', { type: mime }), provider);
+      const result = await (async () => {
+        if (openingsOnly) return recognizeOpenings(project);
+        const blob = await (await fetch(project.source.dataUrl)).blob();
+        const mime = blob.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+        return recognize(new File([blob], mime === 'image/jpeg' ? 'plan.jpeg' : 'plan.png', { type: mime }), provider);
+      })();
       if (generation.current !== token) return;
       if (revision.current !== startedAtRevision) { notify('recognitionStale'); return; }
-      replace({ ...result.project, name: project.name }); setWarnings(result.warnings); notify('recognitionDone');
+      if (openingsOnly) {
+        setProject(result.project); cancelMode(); setSelectedOpeningId(null);
+      } else replace({ ...result.project, name: project.name });
+      setWarnings(result.warnings); notify(openingsOnly ? 'openingRecognitionDone' : 'recognitionDone');
     } catch (error) { if (generation.current === token) notify(error instanceof ApiError ? error.key : 'recognitionFailed', true); }
     finally { if (busyOperation.current === operation) setBusy(false); }
   }
@@ -212,10 +218,12 @@ export default function App() {
             <p>{t('selectedProviderDisclosure', { provider: PROVIDER_NAMES[provider] })}</p>
             {provider === 'gemini' && <p className="provider-note">{t('geminiPrivacy')}</p>}
             {provider === 'openrouter' && <p className="provider-note">{t('openrouterPrivacy')}</p>}
+            {provider === 'openrouter' && <p className="provider-note">{t('openingRecognitionHint')}</p>}
             <span className={`provider-status ${recognitionConfigured ? 'available' : ''}`}><span className="green-dot" />{providers === null ? t('checkingProvider') : recognitionConfigured ? t('providerConfigOnly') : t('providerUnavailable')}</span>
             {providers !== null && !recognitionConfigured && <p className="provider-note">{t('providerSetupHint')}</p>}
           </div>
-          <button className="button outline" disabled={!project || busy || !recognitionConfigured} onClick={() => void runRecognition()}>{busy ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />}{t('recognizePlan')}</button>
+          <div className="recognition-actions"><button className="button outline" disabled={!project || busy || !recognitionConfigured} onClick={() => void runRecognition()}>{busy ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />}{t('recognizePlan')}</button>
+          {provider === 'openrouter' && <button className="button outline" disabled={!project?.rooms.length || busy || !recognitionConfigured} onClick={() => void runRecognition(true)}><ScanLine size={16} />{t('recognizeOpenings')}</button>}</div>
         </div>
         <div className="readiness-card"><Box size={21} strokeWidth={1.4} /><div><h3>{ready ? t('ready3D') : t('steps3D')}</h3><p>{project ? ready ? t('open3DHint') : missing.join(' · ') : t('steps3DHint')}</p></div></div>
       </section>

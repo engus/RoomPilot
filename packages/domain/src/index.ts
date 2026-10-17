@@ -2,6 +2,7 @@ export * from './geometry';
 export * from './overlaps';
 export * from './schema';
 export * from './openings';
+export * from './recognized-openings';
 
 import { polygonArea, type Point } from './geometry';
 import { ProjectSchema, type Project, type Room, type Source, type Recognition } from './schema';

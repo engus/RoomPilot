@@ -19,7 +19,26 @@ const providerErrors: Record<string, TranslationKey> = {
 export async function recognize(file: File, provider: ProviderId = 'openai'): Promise<{ project: Project; warnings: string[] }> {
   const form = new FormData();
   form.append('file', file);
-  const response = await fetch(`/api/recognize?provider=${encodeURIComponent(provider)}`, { method: 'POST', body: form });
+  return requestRecognition(`/api/recognize?provider=${encodeURIComponent(provider)}`, { method: 'POST', body: form });
+}
+
+export async function recognizeOpenings(project: Project): Promise<{ project: Project; warnings: string[] }> {
+  return requestRecognition('/api/recognize-openings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ project }) });
+}
+
+async function requestRecognition(url: string, options: RequestInit): Promise<{ project: Project; warnings: string[] }> {
+  const controller = new AbortController();
+  // Allow the server's maximum 120 s deadline plus transfer time, including response bodies.
+  const timer = setTimeout(() => controller.abort(), 130_000);
+  try {
+    return await parseRecognitionResponse(await fetch(url, { ...options, signal: controller.signal }));
+  } catch (error) {
+    if (controller.signal.aborted) throw new ApiError('recognitionTimeout');
+    throw error;
+  } finally { clearTimeout(timer); }
+}
+
+async function parseRecognitionResponse(response: Response): Promise<{ project: Project; warnings: string[] }> {
   const body: unknown = await response.json();
   if (!response.ok) {
     const code = typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string' ? body.code : '';

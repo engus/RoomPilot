@@ -1,9 +1,32 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { readConfig, recognizeImage } from './recognition';
+import { readConfig, recognizeImage, recognizeOpenings } from './recognition';
+import { createProject } from '@roompilot/domain';
 
 afterEach(() => vi.unstubAllGlobals());
 const image = { dataUrl: 'data:image/png;base64,YQ==', width: 10, height: 10 };
 const recognition = { rooms: [], ceilingHeightM: null, warnings: ['Не найдены комнаты'] };
+it('requests doors and windows in OpenRouter full recognition while preserving partial candidates', async () => {
+  vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+    const sent = JSON.parse(init.body as string);
+    expect(sent.response_format.json_schema.schema.required).toContain('openings');
+    expect(sent.messages[0].content).toMatch(/two image-coordinate endpoints/i);
+    return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ ...recognition, openings: [{ kind: 'window' }] }) } }] });
+  });
+  expect((await recognizeImage(image, { openrouter: { apiKey: 'key', model: 'vision' } }, undefined, 'openrouter')).openings).toHaveLength(1);
+});
+it('sends only normalized existing outlines and image for openings-only recognition', async () => {
+  const project = createProject(image, { ...recognition, rooms: [{ name: 'PRIVATE NAME', reportedAreaM2: null, polygon: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] }] });
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+    expect(url).toContain('openrouter.ai');
+    const sent = JSON.parse(init.body as string);
+    expect(sent.response_format.json_schema.schema.required).toEqual(['openings', 'warnings']);
+    const text = sent.messages[1].content[0].text;
+    expect(text).toContain('"roomIndex":0'); expect(text).toContain('"x":1');
+    expect(JSON.stringify(sent)).not.toMatch(/PRIVATE NAME|ceilingHeightConfirmed|schemaVersion/);
+    return Response.json({ choices: [{ finish_reason: 'stop', message: { content: '{"openings":[],"warnings":[]}' } }] });
+  });
+  expect(await recognizeOpenings(project, { openrouter: { apiKey: 'key', model: 'vision' } })).toEqual({ openings: [], warnings: [] });
+});
 it('sends explicit model, an embedded image and strict Responses structured output without provider storage', async () => {
   let sent: Record<string, any> = {};
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {

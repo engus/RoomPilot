@@ -1,7 +1,33 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { recognize } from './api';
+import { recognize, recognizeOpenings } from './api';
+import { createProject } from '@roompilot/domain';
+
+it('sends a project only to the dedicated OpenRouter openings endpoint and localizes failures', async () => {
+  const project = createProject({ width: 10, height: 10, dataUrl: 'data:image/png;base64,YQ==' }, { rooms: [], ceilingHeightM: null, warnings: [] });
+  vi.stubGlobal('fetch', async (url: string, options: RequestInit) => {
+    expect(url).toBe('/api/recognize-openings');
+    expect(JSON.parse(options.body as string)).toEqual({ project });
+    return Response.json({ code: 'provider_rate_limit' }, { status: 429 });
+  });
+  await expect(recognizeOpenings(project)).rejects.toMatchObject({ key: 'providerRateLimit' });
+});
 
 afterEach(() => vi.unstubAllGlobals());
+it('bounds a stalled recognition request and returns a localized timeout', async () => {
+  vi.useFakeTimers();
+  try {
+    let signal: AbortSignal | null | undefined;
+    vi.stubGlobal('fetch', (_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+      signal = options.signal;
+      signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+    }));
+    const result = recognizeOpenings(createProject({ width: 10, height: 10, dataUrl: 'data:image/png;base64,YQ==' }, { rooms: [], ceilingHeightM: null, warnings: [] }));
+    expect(signal).toBeInstanceOf(AbortSignal);
+    const outcome = expect(result).rejects.toMatchObject({ key: 'recognitionTimeout' });
+    await vi.advanceTimersByTimeAsync(130_001);
+    await outcome;
+  } finally { vi.useRealTimers(); }
+});
 it('routes the image to the selected provider and maps only allowlisted error codes', async () => {
   vi.stubGlobal('fetch', async (url: string, options: RequestInit) => {
     expect(url).toBe('/api/recognize?provider=gemini');

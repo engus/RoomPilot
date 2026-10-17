@@ -13,7 +13,7 @@ A 3D home dashboard for Home Assistant, with a visual floor-plan editor and opti
 - Place doors, windows and open passages on selected room walls; edit widths/heights and window sill heights, and preview actual wall apertures in 3D.
 - Use an explicitly labelled demo or work manually without an API key.
 
-AI results are drafts and require review. Ordinary interior photographs cannot reconstruct a floor plan in this milestone. Cloud recognition currently returns rooms only; openings are placed manually. Furniture, a full shared-wall graph, and accurate architectural reconstruction are deferred. The current 3D view uses stylized room wall faces with actual apertures.
+AI results are drafts and require review. Ordinary interior photographs cannot reconstruct a floor plan in this milestone. OpenRouter also recognizes doors and windows; OpenAI and Gemini currently return rooms only. All openings remain manually editable. Furniture, a full shared-wall graph, and accurate architectural reconstruction are deferred. The current 3D view uses stylized room wall faces with actual apertures.
 
 ## Doors, windows and project versions
 
@@ -21,7 +21,11 @@ After setting scale and ceiling height, select a room, choose **Add door**, **Ad
 
 A nearby opposite wall face can be linked to the same opening so both faces are cut in 3D. Resizing keeps that connection and fails if the existing second face no longer fits. Per-room wall faces and wall thickness remain a simplified preview; verify matching and position against the image. Door leaves are shown partly open with an illustrative inward swing; hinge side and actual opening direction are not encoded. No device command is sent.
 
-Exports use project version 2 with an `openings` list. Version 1 files import through an explicit migration with an empty list; unsupported versions and invalid references are rejected. Clearing scale or ceiling preserves the existing openings and disables 3D. Deleting a room removes its attached openings. Recognition replaces room geometry and produces a new room-only draft, so export any existing opening work before recognizing again.
+Exports use project version 2 with an `openings` list. Version 1 files import through an explicit migration with an empty list; unsupported versions and invalid references are rejected. Clearing scale or ceiling preserves the existing openings and disables 3D. Deleting a room removes its attached openings. Full recognition replaces room geometry and produces a new draft (including detected openings when using OpenRouter), so export existing work before recognizing the full plan again.
+
+With **OpenRouter** selected, **Recognize windows and doors** sends the image and fixed normalized room outlines to the configured model. It preserves room IDs, calibration, ceiling confirmation and existing openings, appending only valid non-conflicting suggestions. Repeated detection skips duplicate/conflicting suggestions. The model marks aperture endpoints; RoomPilot snaps them to compatible wall faces and cuts those faces in 3D. Review positions against the source: near-wall snapping does not guarantee correct detection.
+
+Readable opening heights and sill heights are copied in metres. Unreadable values use explicitly disclosed editable preview defaults: doors up to 2.2 m, windows up to 1.5 m with a suggested 0.85 m sill, adjusted only for unknown values to fit a known ceiling. Width follows the detected image segment; metric width remains unknown without calibration. Invalid candidates are skipped with warnings, while provider failures leave the editor unchanged. 3D still requires scale and confirmed ceiling height. Model quality and free-tier availability vary; automatic retry and provider fallback are not used.
 
 The interface supports English and Russian, defaulting to the browser language (Russian when applicable, English otherwise). Choose Light, Dark, or System appearance. Only these preferences are stored locally; project autosave is not implemented. Project documentation is maintained in English.
 

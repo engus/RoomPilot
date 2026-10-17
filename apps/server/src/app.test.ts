@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { buildApp } from './app';
 import type { RecognitionProvider } from './recognition';
@@ -6,12 +6,63 @@ import type { RecognitionProvider } from './recognition';
 const origin = 'http://127.0.0.1:5173';
 const draft = { rooms: [{ name: null, reportedAreaM2: null, polygon: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }] }], ceilingHeightM: null, warnings: ['Проверьте контуры'] };
 const apps: ReturnType<typeof buildApp>[] = [];
-afterEach(async () => { await Promise.all(apps.splice(0).map(app => app.close())); });
+afterEach(async () => { vi.unstubAllGlobals(); await Promise.all(apps.splice(0).map(app => app.close())); });
 function app(options: Parameters<typeof buildApp>[0] = {}) { const result = buildApp(options); apps.push(result); return result; }
 function upload(bytes: Buffer, mime = 'image/png', extraHeaders: Record<string, string> = {}) {
   return { method: 'POST' as const, url: '/api/recognize', headers: { origin, 'content-type': 'multipart/form-data; boundary=plan-boundary', ...extraHeaders }, payload: Buffer.concat([Buffer.from(`--plan-boundary\r\nContent-Disposition: form-data; name="file"; filename="plan.png"\r\nContent-Type: ${mime}\r\n\r\n`), bytes, Buffer.from('\r\n--plan-boundary--\r\n')]) };
 }
 const png = () => sharp({ create: { width: 20, height: 10, channels: 3, background: 'white' } }).png().toBuffer();
+
+async function openingsFixture() {
+  const server = app({ provider: async () => ({ ...draft, ceilingHeightM: 2.5 }) });
+  const project = (await server.inject(upload(await png()))).json().project;
+  return { ...project, calibration: { points: [{ x: 0, y: 0 }, { x: 20, y: 0 }], lengthM: 4, metresPerPixel: .2 }, ceilingHeightConfirmed: true };
+}
+const candidate = { kind: 'window', heightM: 1.5, sillHeightM: .85, segment: [{ x: .2, y: 0 }, { x: .6, y: 0 }] };
+function routerResponse(openings: unknown[]) { return Response.json({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ openings, warnings: [] }) } }] }); }
+const routerConfig = { openrouter: { apiKey: 'key', model: 'vision' } };
+
+it('appends recognized openings without replacing metadata or manual openings, including repeated detection', async () => {
+  const project = await openingsFixture();
+  project.openings = [{ id: 'manual', kind: 'door', heightM: 2.2, sillHeightM: 0, spans: [{ roomId: project.rooms[0].id, edgeIndex: 1, start: .1, end: .7 }] }];
+  vi.stubGlobal('fetch', async () => routerResponse([candidate, { invalid: true }]));
+  const server = app({ config: routerConfig });
+  const response = await server.inject({ method: 'POST', url: '/api/recognize-openings', headers: { origin }, payload: { project } });
+  expect(response.statusCode).toBe(200);
+  const result = response.json(); expect(result.project.openings).toHaveLength(2);
+  expect(result.project.openings[0]).toEqual(project.openings[0]);
+  expect({ ...result.project, openings: [] }).toEqual({ ...project, openings: [] });
+  expect(result.warnings.join(' ')).toMatch(/skipped 1/i);
+  const again = await server.inject({ method: 'POST', url: '/api/recognize-openings', headers: { origin }, payload: { project: result.project } });
+  expect(again.json().project).toEqual(result.project);
+});
+it('rejects invalid image data, mismatched dimensions, absent rooms and untrusted origins before provider use', async () => {
+  const project = await openingsFixture(); const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+  const server = app({ config: routerConfig });
+  for (const changed of [
+    { ...project, source: { ...project.source, dataUrl: 'data:image/png;base64,YQ==' } },
+    { ...project, source: { ...project.source, width: 21 } },
+    { ...project, rooms: [] },
+  ]) expect((await server.inject({ method: 'POST', url: '/api/recognize-openings', headers: { origin }, payload: { project: changed } })).statusCode).toBe(400);
+  expect((await server.inject({ method: 'POST', url: '/api/recognize-openings', payload: { project } })).statusCode).toBe(403);
+  expect(fetch).not.toHaveBeenCalled();
+});
+it('times out openings-only calls and shares the busy slot with full recognition', async () => {
+  const project = await openingsFixture(); let started!: () => void;
+  const gate = new Promise<void>(resolve => { started = resolve; });
+  vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => { started(); return new Promise((_resolve, reject) => init.signal!.addEventListener('abort', () => reject(new Error('cancelled')))); });
+  const server = app({ config: { ...routerConfig, requestTimeoutMs: 50 } });
+  const pending = server.inject({ method: 'POST', url: '/api/recognize-openings', headers: { origin }, payload: { project } });
+  await gate;
+  expect((await server.inject({ ...upload(await png()), url: '/api/recognize?provider=openrouter' })).statusCode).toBe(429);
+  expect((await pending).statusCode).toBe(504);
+});
+it('returns full OpenRouter recognition with accepted openings and warnings for malformed candidates', async () => {
+  const server = app({ providers: { openrouter: async () => ({ ...draft, ceilingHeightM: 2.5, openings: [candidate, { bad: true }] }) } });
+  const response = await server.inject({ ...upload(await png()), url: '/api/recognize?provider=openrouter' });
+  expect(response.statusCode).toBe(200); expect(response.json().project.openings).toHaveLength(1);
+  expect(response.json().warnings.join(' ')).toMatch(/skipped 1/i);
+});
 
 describe('recognition API', () => {
   it('reports missing credentials and refuses recognition without demo substitution', async () => {

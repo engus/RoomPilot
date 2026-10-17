@@ -1,8 +1,8 @@
 import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import sharp from 'sharp';
-import { createProject, RecognitionSchema, type Source } from '@roompilot/domain';
-import { credentialsFor, isProviderId, providerConfigured, PROVIDER_IDS, readConfig, recognizeImage, RecognitionError, type ProviderId, type RecognitionConfig, type RecognitionProvider } from './recognition';
+import { applyDetectedOpenings, createProject, ProjectSchema, RecognitionSchema, type Source } from '@roompilot/domain';
+import { credentialsFor, isProviderId, providerConfigured, PROVIDER_IDS, readConfig, recognizeImage, recognizeOpenings, RecognitionError, type ProviderId, type RecognitionConfig, type RecognitionProvider } from './recognition';
 
 const MAX_UPLOAD = 10 * 1024 * 1024;
 const MAX_PIXELS = 20_000_000;
@@ -60,15 +60,54 @@ export function buildApp({ provider, providers = {}, config = readConfig() }: Bu
         });
         const result = await Promise.race([invoke(image, controller.signal), timeout]);
         const recognition = RecognitionSchema.parse(result);
-        const project = createProject(image, recognition);
-        return { project, warnings: recognition.warnings };
+        const base = createProject(image, recognition);
+        const converted = applyDetectedOpenings(base, recognition.openings ?? []);
+        return { project: converted.project, warnings: [...recognition.warnings, ...(recognition.openings ? converted.warnings : [])] };
       } catch (error) {
         if (error instanceof RecognitionError) throw error;
         throw new RecognitionError(502, 'Не удалось получить корректный ответ провайдера. Проверьте настройки или повторите запрос.');
       } finally { if (timer) clearTimeout(timer); }
     } finally { busy = false; }
   });
+  app.post<{ Body: { project?: unknown } }>('/api/recognize-openings', {
+    bodyLimit: 20 * 1024 * 1024,
+    onRequest: async (request, reply) => {
+      if (!request.headers.origin || !allowedOrigins.has(request.headers.origin)) return reply.code(403).send({ error: 'Recognition requires the local RoomPilot interface.' });
+      if (!providerConfigured(config, 'openrouter')) throw new RecognitionError(503, 'Configure OpenRouter on the server.', 'provider_unconfigured');
+    },
+  }, async (request, reply) => {
+    if (busy) return reply.code(429).header('Retry-After', '2').send({ error: 'Another recognition is running.' });
+    busy = true;
+    try {
+      const parsed = ProjectSchema.safeParse(request.body?.project);
+      if (!parsed.success || !parsed.data.rooms.length) throw new RecognitionError(400, 'A valid project with rooms is required.');
+      const project = parsed.data;
+      await verifyEmbeddedImage(project.source);
+      const controller = new AbortController();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const timeout = new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => { controller.abort(); reject(new RecognitionError(504, 'Recognition timed out.', 'recognition_timeout')); }, config.requestTimeoutMs ?? 45_000);
+        });
+        const recognition = await Promise.race([recognizeOpenings(project, config, controller.signal), timeout]);
+        const result = applyDetectedOpenings(project, recognition.openings);
+        return { project: result.project, warnings: [...recognition.warnings, ...result.warnings] };
+      } finally { if (timer) clearTimeout(timer); }
+    } finally { busy = false; }
+  });
   return app;
+}
+
+async function verifyEmbeddedImage(source: Source): Promise<void> {
+  try {
+    const bytes = Buffer.from(source.dataUrl.split(',')[1]!, 'base64');
+    if (bytes.length > MAX_UPLOAD) throw new Error('Image too large.');
+    const image = sharp(bytes, { limitInputPixels: MAX_PIXELS, failOn: 'warning' });
+    const metadata = await image.metadata();
+    if (!['png', 'jpeg'].includes(metadata.format ?? '') || !source.dataUrl.startsWith(`data:image/${metadata.format};`) || metadata.width !== source.width || metadata.height !== source.height || (metadata.pages ?? 1) > 1 || (metadata.orientation ?? 1) !== 1) throw new Error('Image mismatch.');
+    // Decode without rotating or resizing: existing polygons use these exact pixels.
+    await image.png().toBuffer();
+  } catch { throw new RecognitionError(400, 'The embedded image is invalid or does not match its dimensions.'); }
 }
 
 async function normalizeImage(bytes: Buffer, mime: string): Promise<Source> {

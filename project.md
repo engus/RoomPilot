@@ -22,7 +22,7 @@ Documentation is written in English. The interface supports English and Russian;
 8. Report missing credentials or provider failure explicitly. Demo mode is a separate, labelled action.
 9. Add door, window and passage objects on room edges, edit their dimensions, and preview actual wall apertures. Version 1 imports migrate to version 2; new exports preserve openings.
 
-Interior-photo reconstruction, furniture, HA control, multiple floors, native/PWA packaging, and architectural accuracy are outside this first iteration. The owner subsequently authorized openings: these now have manual placement and 2D/3D rendering. Automatic provider recognition of openings remains unimplemented.
+Interior-photo reconstruction, furniture, HA control, multiple floors, native/PWA packaging, and architectural accuracy are outside this first iteration. The owner subsequently authorized openings: these now have manual placement and 2D/3D rendering. OpenRouter now recognizes doors and windows alongside rooms, or adds them to an existing plan without replacing its geometry. Other providers remain room-only.
 
 ## Architecture
 
@@ -53,7 +53,7 @@ Recognition supports an explicit OpenAI / Gemini / OpenRouter selection with no 
 ## Next milestones
 
 - Server-side project library, SQLite, and backups.
-- A full shared-wall graph, automatic opening recognition, and a more complete geometry editor. The current preview keeps room-face walls and links one aperture to up to two faces.
+- A full shared-wall graph, better opening detection quality, and a more complete geometry editor. The current preview keeps room-face walls and links one aperture to up to two faces.
 - HA authentication, live entity state, and object-to-entity placement.
 - Furnishing a selected room from photos and interchangeable AI providers.
 - Docker arm64/x64, HA app / Ingress, and PWA delivery.

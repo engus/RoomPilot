@@ -1,5 +1,46 @@
 import { test, expect, type Page } from '@playwright/test';
 
+test('recognizes openings on an existing plan, preserves metadata and shows them in 2D and 3D', async ({ page }) => {
+  await page.route('**/api/health', route => route.fulfill({ json: { defaultProvider: 'openrouter', providers: [{ id: 'openrouter', configured: true, model: 'vision:free' }] } }));
+  await page.goto('/'); const fixture = await importFixture(page);
+  const project = { ...fixture, schemaVersion: 2, openings: [], calibration: { points: [{ x: 10, y: 10 }, { x: 300, y: 10 }], lengthM: 2.9, metresPerPixel: .01 }, ceilingHeightM: 2.5, ceilingHeightConfirmed: true };
+  await page.locator('input[type=file][accept*="json"]').setInputFiles({ name: 'ready.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
+  const openings = [
+    { id: 'ai-door', kind: 'door', heightM: 2.2, sillHeightM: 0, spans: [{ roomId: 'room-1', edgeIndex: 1, start: .2, end: .6 }] },
+    { id: 'ai-window', kind: 'window', heightM: 1.5, sillHeightM: .85, spans: [{ roomId: 'room-1', edgeIndex: 0, start: .2, end: .6 }] },
+  ];
+  await page.route('**/api/recognize-openings', async route => {
+    expect(route.request().postDataJSON().project).toEqual(project);
+    await route.fulfill({ json: { project: { ...project, openings }, warnings: [] } });
+  });
+  await page.getByRole('button', { name: 'Распознать окна и двери', exact: true }).click();
+  await expect(page.getByTestId('opening-symbol')).toHaveCount(2);
+  await page.getByRole('button', { name: '3D', exact: true }).click();
+  await expect(page.getByTestId('scene-3d').locator('canvas')).toBeVisible();
+  const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Экспорт проекта', exact: true }).click();
+  const stream = await (await download).createReadStream(); const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  expect(JSON.parse(Buffer.concat(chunks).toString())).toEqual({ ...project, openings });
+  await page.getByTestId('language-select').selectOption('en');
+  await expect(page.getByRole('button', { name: 'Recognize windows and doors', exact: true })).toBeEnabled();
+});
+
+test('does not apply stale opening recognition over room edits or erase openings on a provider failure', async ({ page }) => {
+  await page.route('**/api/health', route => route.fulfill({ json: { defaultProvider: 'openrouter', providers: [{ id: 'openrouter', configured: true, model: 'vision:free' }] } }));
+  await page.goto('/'); const fixture = await importFixture(page);
+  let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/api/recognize-openings', async route => { await gate; await route.fulfill({ json: { project: { ...fixture, schemaVersion: 2, openings: [] }, warnings: [] } }); });
+  const request = page.waitForRequest('**/api/recognize-openings');
+  await page.getByRole('button', { name: 'Распознать окна и двери', exact: true }).click(); await request;
+  await page.getByLabel('Название комнаты', { exact: true }).fill('Мой кабинет'); release();
+  await expect(page.getByRole('status')).toContainText('изменился');
+  await expect(page.getByLabel('Название комнаты', { exact: true })).toHaveValue('Мой кабинет');
+  await page.route('**/api/recognize-openings', route => route.fulfill({ status: 429, json: { code: 'provider_quota' } }));
+  await page.getByRole('button', { name: 'Распознать окна и двери', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('баланс');
+  await expect(page.getByLabel('Название комнаты', { exact: true })).toHaveValue('Мой кабинет');
+});
+
 async function importFixture(page: Page, mime = 'image/png') {
   const dataUrl = await page.evaluate(type => {
     const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 400;

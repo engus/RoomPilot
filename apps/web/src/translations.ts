@@ -1,6 +1,8 @@
 export const en = {
+  recognizeOpenings: 'Recognize windows and doors', openingRecognitionDone: 'Opening detection finished. Review the added doors, windows and their dimensions.',
+  openingRecognitionHint: 'OpenRouter can detect rooms with openings, or send the image and existing room outlines to detect only windows and doors. Existing openings are preserved. Unreadable heights use editable preview dimensions; review them before use.',
   openingsTitle: 'Doors and windows', openingDoor: 'Door', openingWindow: 'Window', openingPassage: 'Passage', addDoor: 'Add door', addWindow: 'Add window', addPassage: 'Add passage',
-  openingPlacementHint: 'Click a wall of the selected room to place the opening.', openingManualHint: 'Place openings manually. Cloud recognition currently returns rooms only. New openings use editable draft dimensions.', openingPrerequisites: 'Set the scale and ceiling height before placing an opening.', cancelOpeningPlacement: 'Cancel opening placement',
+  openingPlacementHint: 'Click a wall of the selected room to place the opening.', openingManualHint: 'Place openings manually or detect them through OpenRouter below. Review all suggested positions and dimensions.', openingPrerequisites: 'Set the scale and ceiling height before placing an opening.', cancelOpeningPlacement: 'Cancel opening placement',
   openingSelect: 'Opening', chooseOpening: 'Choose an opening', openingSelectHint: 'Select an opening on the plan or place a new one to edit its dimensions.', openingOneFace: 'One wall face.', openingTwoFaces: 'Connected opening across two wall faces.',
   openingWidth: 'Opening width, m', openingHeight: 'Opening height, m', openingSill: 'Window sill height, m', applyOpeningDimensions: 'Apply dimensions', removeOpening: 'Delete opening',
   openingAdded: 'Opening added. Review its dimensions.', openingUpdated: 'Openings updated.', invalidOpening: 'Could not place or resize the opening. Check the wall, width, height, sill and other openings.', openingHeightConflict: 'The ceiling is lower than an existing opening. Adjust the opening dimensions before confirming the height.',
@@ -29,8 +31,10 @@ export const en = {
 } as const;
 export type TranslationKey = keyof typeof en;
 export const ru: Record<TranslationKey, string> = {
+  recognizeOpenings: 'Распознать окна и двери', openingRecognitionDone: 'Поиск проёмов завершён. Проверьте добавленные двери, окна и их размеры.',
+  openingRecognitionHint: 'OpenRouter распознаёт комнаты с проёмами или ищет только окна и двери по изображению и готовым контурам комнат. Существующие проёмы сохраняются. Для нечитаемых высот используются редактируемые черновые размеры — проверьте их.',
   openingsTitle: 'Двери и окна', openingDoor: 'Дверь', openingWindow: 'Окно', openingPassage: 'Проход', addDoor: 'Добавить дверь', addWindow: 'Добавить окно', addPassage: 'Добавить проход',
-  openingPlacementHint: 'Нажмите на стену выбранной комнаты, чтобы поставить проём.', openingManualHint: 'Установите проёмы вручную. Облачное распознавание пока возвращает только комнаты. Начальные размеры проёмов можно изменить.', openingPrerequisites: 'Для установки проёма задайте масштаб и высоту потолка.', cancelOpeningPlacement: 'Отменить установку проёма',
+  openingPlacementHint: 'Нажмите на стену выбранной комнаты, чтобы поставить проём.', openingManualHint: 'Установите проёмы вручную или распознайте их через OpenRouter ниже. Проверьте положения и размеры всех предложений.', openingPrerequisites: 'Для установки проёма задайте масштаб и высоту потолка.', cancelOpeningPlacement: 'Отменить установку проёма',
   openingSelect: 'Проём', chooseOpening: 'Выберите проём', openingSelectHint: 'Выберите проём на плане или установите новый, чтобы изменить размеры.', openingOneFace: 'Одна сторона стены.', openingTwoFaces: 'Сквозной проём через две стороны стены.',
   openingWidth: 'Ширина проёма, м', openingHeight: 'Высота проёма, м', openingSill: 'Высота подоконника, м', applyOpeningDimensions: 'Применить размеры', removeOpening: 'Удалить проём',
   openingAdded: 'Проём добавлен. Проверьте его размеры.', openingUpdated: 'Проёмы обновлены.', invalidOpening: 'Не удалось установить или изменить проём. Проверьте стену, ширину, высоту, подоконник и соседние проёмы.', openingHeightConflict: 'Потолок ниже существующего проёма. Измените размеры проёма перед подтверждением высоты.',
