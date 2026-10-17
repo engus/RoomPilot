@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { findRoomOverlaps, getComputedArea, getZoneArea, isReadyFor3D, ProjectSchema } from '@roompilot/domain';
+import { buildSolidWallModel, findRoomOverlaps, getComputedArea, getZoneArea, isReadyFor3D, ProjectSchema } from '@roompilot/domain';
 import { buildDemoProject } from './demo-project';
 import { DEMO_SIZE } from './demo-layout';
 
@@ -21,4 +21,22 @@ it('builds a localized complete apartment with wall-free zones, original calibra
   ru.rooms[0].name = 'Edited'; ru.openings[0].spans[0].start = 0;
   expect(buildDemoProject(source, 'ru').rooms[0].name).toBe('Спальня взрослых');
   expect(buildDemoProject(source, 'ru').openings[0].spans[0].start).not.toBe(0);
+});
+
+it('fills the demo partition and balcony gaps while preserving open living zones', () => {
+  const project = buildDemoProject({ ...DEMO_SIZE, dataUrl: 'data:image/png;base64,YQ==' }, 'en');
+  const model = buildSolidWallModel(project), scale = project.calibration!.metresPerPixel;
+  function contains(x: number, y: number) {
+    const inside = (ring: { x: number; y: number }[]) => {
+      let value = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const a = ring[i], b = ring[j];
+        if ((a.y > y * scale) !== (b.y > y * scale) && x * scale < (b.x - a.x) * (y * scale - a.y) / (b.y - a.y) + a.x) value = !value;
+      }
+      return value;
+    };
+    return model.footprint.some(polygon => inside(polygon[0]) && !polygon.slice(1).some(inside));
+  }
+  for (const [x, y] of [[365.5, 300], [250, 463.5], [200, 125.5], [229.5, 500], [570.5, 350]]) expect(contains(x, y)).toBe(true);
+  for (const [x, y] of [[450, 350], [650, 200], [500, 520], [500, 800]]) expect(contains(x, y)).toBe(false);
 });

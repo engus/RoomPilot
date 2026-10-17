@@ -1,4 +1,5 @@
 export const en = {
+  sceneTooComplex: 'This plan is too detailed for the 3D preview', sceneTooComplexHint: 'Continue in 2D or reduce the number of vertices and openings. Your project remains in the editor and can be exported.',
   briefTitle: 'About the apartment', briefHint: 'Optional questions before recognition. Your answers are sent with the image to the selected AI provider as context. Approximate area does not set the plan scale.', briefClear: 'Clear apartment details',
   briefLivingRooms: 'Habitable rooms (bedrooms and living areas)', briefArea: 'Approximate area, m²', briefBalconyArea: 'Balcony in the stated area', briefAreaIncluded: 'Included', briefAreaExcluded: 'Excluded', briefBathrooms: 'Bathrooms', briefBathroomLayout: 'Bathroom layout',
   briefCombined: 'Combined bathroom / WC', briefSeparate: 'Separate bathroom and WC', briefMixed: 'Mixed layouts', briefExtras: 'Kitchens, balconies and storage', briefKitchens: 'Kitchens', briefBalconies: 'Balconies', briefStorage: 'Storage rooms',
@@ -41,6 +42,7 @@ export const en = {
 } as const;
 export type TranslationKey = keyof typeof en;
 export const ru: Record<TranslationKey, string> = {
+  sceneTooComplex: 'План слишком сложный для 3D-предпросмотра', sceneTooComplexHint: 'Продолжайте работу в 2D или уменьшите число вершин и проёмов. Проект остаётся в редакторе, его можно экспортировать.',
   briefTitle: 'О квартире', briefHint: 'Необязательные вопросы перед распознаванием. Ответы отправляются вместе с планом выбранному AI-провайдеру как подсказка. Примерная площадь не задаёт масштаб плана.', briefClear: 'Очистить сведения',
   briefLivingRooms: 'Жилых комнат (спальни и гостиные)', briefArea: 'Примерная площадь, м²', briefBalconyArea: 'Балкон в указанной площади', briefAreaIncluded: 'Включён', briefAreaExcluded: 'Не включён', briefBathrooms: 'Санузлов', briefBathroomLayout: 'Тип санузла',
   briefCombined: 'Совмещённый', briefSeparate: 'Раздельный', briefMixed: 'Есть разные типы', briefExtras: 'Кухни, балконы и кладовые', briefKitchens: 'Кухонь', briefBalconies: 'Балконов', briefStorage: 'Кладовых',

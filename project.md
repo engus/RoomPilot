@@ -8,6 +8,8 @@ Users upload a floor plan, review room outlines and names, inspect printed and c
 
 Priorities are an approachable setup process, a stylized lightweight scene, browser access across operating systems, local operation, and optional AI assistance. Reference: https://github.com/0xProbabillity/house-control. No reference implementation code has been copied.
 
+The owner clarified the visual direction: a recognizable interactive dollhouse, with solid joined opaque walls and no hollow gaps between nearby room faces. Architectural fidelity is secondary. Keep accurate source metadata separate from display simplification; the derived preview never rewrites room geometry or measured areas. The scene has a shallow base, full-depth door/window apertures and selectable floors/walls/zones. Presentation widths are conventions, not recognized construction measurements.
+
 Documentation is written in English. The interface supports English and Russian; communication with the owner is in Russian. Language defaults to the browser preference, with English fallback. Light, dark, and system themes are selectable and persisted independently of project data.
 
 ## First MVP
@@ -57,7 +59,7 @@ Recognition supports an explicit OpenAI / Gemini / OpenRouter selection with no 
 ## Next milestones
 
 - Server-side project library, SQLite, and backups.
-- A full shared-wall graph, better opening detection quality, and a more complete geometry editor. The current preview keeps room-face walls and links one aperture to up to two faces.
+- A full shared-wall graph, better opening detection quality, and a more complete geometry editor. The current preview unions nearby boundary strips into solid walls and links one aperture to up to two compatible faces; it is still a stylized presentation rather than a CAD wall graph.
 - HA authentication, live entity state, and object-to-entity placement.
 - Furnishing a selected room from photos and interchangeable AI providers.
 - Docker arm64/x64, HA app / Ingress, and PWA delivery.

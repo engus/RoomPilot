@@ -19,6 +19,7 @@
 - Run `pnpm test`, `pnpm typecheck`, and `pnpm build` before claiming completion. Report precisely which checks ran and any limitations.
 - Treat uploaded plans and AI responses as untrusted input. Validate size, actual image contents, coordinates, topology, and numeric bounds.
 - AI creates a reviewable draft, never confirmed geometry or real device commands. No silent demo fallback on recognition failure.
+- Favor an interactive toy/dollhouse appearance: opaque joined wall volumes, sealed corners and a simple base. Preview wall widths and gap joining are display conventions; never rewrite source polygons, areas or calibration to achieve the style. Preserve room/zone selection and real door/window apertures. Keep preview work bounded so accepted complex documents remain editable/exportable in 2D.
 - Coordinates are image pixels until scale is known; real dimensions use metres and areas square metres. Never present unscaled geometry as measured.
 - Preserve reported area and computed area independently. Unknown values remain unknown. Ask for ceiling height when absent; never silently assign a real-world value.
 - Keep private floor plans, uploads, `.env`, tokens, and runtime data out of Git. Do not log provider secrets or image payloads. The owner explicitly authorized distributing the derived apartment demo geometry and room labels on 2026-10-17; only that code-defined/redrawn demo is public, while original and annotated images, private exports and provider responses stay ignored.

@@ -1,13 +1,12 @@
-import { getOpeningSegment, type Opening, type Project } from '@roompilot/domain';
+import type { Project, SolidOpening } from '@roompilot/domain';
 
-function OpeningMesh({ project, opening, origin, onRoomSelect }: {
-  project: Project; opening: Opening; origin: [number, number]; onRoomSelect: (roomId: string) => void;
+function OpeningMesh({ project, placement, origin, onRoomSelect }: {
+  project: Project; placement: SolidOpening; origin: [number, number]; onRoomSelect: (roomId: string) => void;
 }) {
+  const { opening, a, b, depthM } = placement;
   if (opening.kind === 'passage') return null;
   const span = opening.spans[0];
-  const [a, b] = getOpeningSegment(project, span);
-  const scale = project.calibration!.metresPerPixel;
-  const width = Math.hypot(b.x - a.x, b.y - a.y) * scale;
+  const width = Math.hypot(b.x - a.x, b.y - a.y);
   const height = opening.heightM;
   const trim = Math.min(.045, width / 6, height / 6);
   const room = project.rooms.find(room => room.id === span.roomId)!;
@@ -15,18 +14,18 @@ function OpeningMesh({ project, opening, origin, onRoomSelect }: {
     const next = room.polygon[(index + 1) % room.polygon.length];
     return area + point.x * next.y - next.x * point.y;
   }, 0));
-  return <group position={[a.x * scale - origin[0], opening.sillHeightM, a.y * scale - origin[1]]}
+  return <group position={[a.x - origin[0], opening.sillHeightM, a.y - origin[1]]}
     rotation={[0, -Math.atan2(b.y - a.y, b.x - a.x), 0]}
     onClick={event => { event.stopPropagation(); onRoomSelect(span.roomId); }}>
     {[trim / 2, width - trim / 2].map(x => <mesh key={x} position={[x, height / 2, 0]} castShadow receiveShadow>
-      <boxGeometry args={[trim, height, .12]} /><meshStandardMaterial color={opening.kind === 'window' ? '#dbe5df' : '#8b7155'} roughness={.65} />
+      <boxGeometry args={[trim, height, depthM + .02]} /><meshStandardMaterial color={opening.kind === 'window' ? '#dbe5df' : '#8b7155'} roughness={.65} />
     </mesh>)}
     <mesh position={[width / 2, height - trim / 2, 0]} castShadow receiveShadow>
-      <boxGeometry args={[width - trim * 2, trim, .12]} /><meshStandardMaterial color={opening.kind === 'window' ? '#dbe5df' : '#8b7155'} roughness={.65} />
+      <boxGeometry args={[width - trim * 2, trim, depthM + .02]} /><meshStandardMaterial color={opening.kind === 'window' ? '#dbe5df' : '#8b7155'} roughness={.65} />
     </mesh>
     {opening.kind === 'window' ? <>
       <mesh position={[width / 2, trim / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[width - trim * 2, trim, .12]} /><meshStandardMaterial color="#dbe5df" roughness={.65} />
+        <boxGeometry args={[width - trim * 2, trim, depthM + .02]} /><meshStandardMaterial color="#dbe5df" roughness={.65} />
       </mesh>
       <mesh position={[width / 2, height / 2, 0]}>
         <boxGeometry args={[width - trim * 2, height - trim * 2, .015]} />
@@ -43,8 +42,8 @@ function OpeningMesh({ project, opening, origin, onRoomSelect }: {
   </group>;
 }
 
-export default function OpeningMeshes({ project, origin, onRoomSelect }: {
-  project: Project; origin: [number, number]; onRoomSelect: (roomId: string) => void;
+export default function OpeningMeshes({ project, placements, origin, onRoomSelect }: {
+  project: Project; placements: SolidOpening[]; origin: [number, number]; onRoomSelect: (roomId: string) => void;
 }) {
-  return <group>{project.openings.map(opening => <OpeningMesh key={opening.id} project={project} opening={opening} origin={origin} onRoomSelect={onRoomSelect} />)}</group>;
+  return <group>{placements.map((placement, i) => <OpeningMesh key={`${placement.opening.id}-${i}`} project={project} placement={placement} origin={origin} onRoomSelect={onRoomSelect} />)}</group>;
 }

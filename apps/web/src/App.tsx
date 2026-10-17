@@ -1,6 +1,6 @@
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowUpFromLine, Box, Check, ChevronRight, CircleHelp, FileImage, Layers2, LoaderCircle, Maximize2, MousePointer2, Plus, Ruler, ScanLine, ShieldCheck, Sparkles, SquareDashed, Trash2, Upload, X } from 'lucide-react';
-import { calibrateProject, createProject, findRoomOverlaps, getComputedArea, getZoneArea, isReadyFor3D, placeOpening, removeRoom, ProjectSchema, validatePolygon, type OpeningKind, type Point, type Project, type Room, type Zone } from '@roompilot/domain';
+import { calibrateProject, createProject, findRoomOverlaps, getComputedArea, getZoneArea, isReadyFor3D, placeOpening, PreviewComplexityError, removeRoom, ProjectSchema, validatePolygon, type OpeningKind, type Point, type Project, type Room, type Zone } from '@roompilot/domain';
 import PlanCanvas, { ROOM_COLORS, type EditorMode } from './components/PlanCanvas';
 import OpeningEditor from './components/OpeningEditor';
 import ZoneEditor from './components/ZoneEditor';
@@ -14,11 +14,11 @@ import { ApiError } from './api';
 import type { TranslationKey } from './translations';
 
 const RoomScene = lazy(() => import('./components/RoomScene'));
-function SceneError() { const { t } = useInterface(); return <div className="empty-scene"><Box size={40} /><h3>{t('noWebGL')}</h3><p>{t('noWebGLHint')}</p></div>; }
-class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  render() { return this.state.failed ? <SceneError /> : this.props.children; }
+function SceneError({ complexity = false }: { complexity?: boolean }) { const { t } = useInterface(); return <div className="empty-scene"><Box size={40} /><h3>{t(complexity ? 'sceneTooComplex' : 'noWebGL')}</h3><p>{t(complexity ? 'sceneTooComplexHint' : 'noWebGLHint')}</p></div>; }
+class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean; complexity: boolean }> {
+  state = { failed: false, complexity: false };
+  static getDerivedStateFromError(error: unknown) { return { failed: true, complexity: error instanceof PreviewComplexityError }; }
+  render() { return this.state.failed ? <SceneError complexity={this.state.complexity} /> : this.props.children; }
 }
 
 export default function App() {
