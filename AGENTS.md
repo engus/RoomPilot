@@ -22,6 +22,7 @@
 - Coordinates are image pixels until scale is known; real dimensions use metres and areas square metres. Never present unscaled geometry as measured.
 - Preserve reported area and computed area independently. Unknown values remain unknown. Ask for ceiling height when absent; never silently assign a real-world value.
 - Keep private floor plans, uploads, `.env`, tokens, and runtime data out of Git. Do not log provider secrets or image payloads.
+- Before changing frontend code or dependencies while the owner's development editor is open, export its current document to an ignored local file. Hot updates can reset React state and dependency optimization can reload the page. Preserve the backup before reloading or replacing the active document; project autosave is not implemented.
 - Keep modules focused. Do not add native wrappers, databases, background queues, authentication systems, or HA integrations before their milestone requires them.
 - Support light, dark, and system appearance. Persist language/theme preferences separately from project data; preference persistence is not project autosave.
 - After every meaningful completed change, run the checks appropriate to that change, create a focused Git commit, and push it to the current branch's configured upstream. The owner has explicitly authorized this ongoing commit-and-push workflow; do not ask for permission again for routine commits and pushes.

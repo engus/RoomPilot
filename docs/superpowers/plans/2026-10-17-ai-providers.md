@@ -28,6 +28,12 @@ The owner requested Gemini alongside OpenAI and reported an OpenRouter key. Exte
 - Health/error responses must not include secrets or raw upstream diagnostics.
 - Changing providers must preserve current geometry and edits; recognition still applies only to the document revision that started it.
 
+## Room overlap review
+
+The owner observed a large recognized room swallowing a smaller room and an omitted corridor. Add a local review check for positive-area intersections between room interiors, including complete containment. Shared walls/corners remain valid and concave cutouts must be respected. Show a bilingual warning naming the affected pairs after recognition, import, and manual edits; preserve the editable draft rather than discard all rooms or automatically subtract geometry. Use `polygon-clipping` for polygon intersection and keep this quality check independent of schema validity and real-world scale.
+
+Strengthen the common extraction instructions to trace actual interior wall faces, preserve concave outlines, inspect unlabelled corridors/balconies, keep room interiors separate, and copy area labels without calculating or guessing them. This is a prompt change, not evidence that a model now produces an accurate plan. Detecting omitted spaces requires image analysis and remains unimplemented. No new cloud request or automatic repair is included in this change.
+
 ## Sources
 
 - https://ai.google.dev/gemini-api/docs/generate-content/structured-output

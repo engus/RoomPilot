@@ -222,3 +222,27 @@ test('explains invalid AI room outlines and preserves the source and edits for e
   expect(saved.source).toEqual(project.source);
   expect(saved.rooms).toEqual([{ ...project.rooms[0], name: 'Моя кухня' }]);
 });
+
+test('warns about a swallowed room locally and clears the warning after the overlapping room is deleted', async ({ page }) => {
+  let recognitionRequests = 0;
+  page.on('request', request => { if (new URL(request.url()).pathname === '/api/recognize') recognitionRequests++; });
+  await page.goto('/');
+  const project = await importFixture(page);
+  const smallRoom = { id: 'small-room', name: 'Small room', reportedAreaM2: 4.8, polygon: [{ x: 100, y: 50 }, { x: 200, y: 50 }, { x: 200, y: 100 }, { x: 100, y: 100 }] };
+  const overlapping = { ...project, rooms: [...project.rooms, smallRoom] };
+  await page.locator('input[type=file][accept*="json"]').setInputFiles({ name: 'overlap.roompilot.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(overlapping)) });
+  const warning = page.getByTestId('room-overlap-warning');
+  await expect(warning).toContainText('наложением');
+  await expect(warning).toContainText('Kitchen');
+  await expect(warning).toContainText('Small room');
+  await page.getByTestId('language-select').selectOption('en');
+  await expect(warning).toContainText('overlapping interiors');
+  await page.screenshot({ path: 'test-results/roompilot-overlap-warning.png', fullPage: true });
+  await page.getByRole('button', { name: 'Select room Small room', exact: true }).click();
+  await expect(page.getByLabel('Area on plan, m²', { exact: true })).toHaveValue('4.8');
+  await page.getByRole('button', { name: 'Delete room', exact: true }).click();
+  await expect(warning).toHaveCount(0);
+  await expect(page.getByTestId('plan-canvas')).toBeVisible();
+  await expect(page.getByLabel('Room name', { exact: true })).toHaveValue('Kitchen');
+  expect(recognitionRequests).toBe(0);
+});

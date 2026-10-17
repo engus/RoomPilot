@@ -5,5 +5,5 @@
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "scripts": { "typecheck": "tsc -p tsconfig.json", "build": "tsc -p tsconfig.json" },
-  "dependencies": { "zod": "^3.25.0" }
+  "dependencies": { "polygon-clipping": "0.15.7", "zod": "^3.25.0" }
 }

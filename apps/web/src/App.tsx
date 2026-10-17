@@ -1,6 +1,6 @@
-import { Component, lazy, Suspense, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { ArrowDownToLine, ArrowUpFromLine, Box, Check, ChevronRight, CircleHelp, FileImage, Layers2, LoaderCircle, Maximize2, MousePointer2, Plus, Ruler, ScanLine, ShieldCheck, Sparkles, SquareDashed, Trash2, Upload, X } from 'lucide-react';
-import { calibrateProject, createProject, getComputedArea, isReadyFor3D, ProjectSchema, validatePolygon, type Point, type Project, type Room } from '@roompilot/domain';
+import { calibrateProject, createProject, findRoomOverlaps, getComputedArea, isReadyFor3D, ProjectSchema, validatePolygon, type Point, type Project, type Room } from '@roompilot/domain';
 import PlanCanvas, { ROOM_COLORS, type EditorMode } from './components/PlanCanvas';
 import { createDemo } from './demo';
 import { readImage, recognize, verifyImportedSource, PROVIDER_IDS, PROVIDER_NAMES, type ProviderId, type ProviderStatus, type ProviderHealth } from './api';
@@ -55,6 +55,7 @@ export default function App() {
   }, []);
   const notify = (key: TranslationKey, error = false) => setMessage({ key, error });
   const selected = project?.rooms.find(room => room.id === selectedId) ?? null;
+  const overlaps = useMemo(() => findRoomOverlaps(project?.rooms ?? []), [project?.rooms]);
   const ready = project ? isReadyFor3D(project) : false;
   const missing = project ? [!project.rooms.length && t('missingRooms'), !project.calibration && t('missingScale'), (!project.ceilingHeightM || !project.ceilingHeightConfirmed) && t('missingHeight')].filter(Boolean) : [];
   const replace = (next: Project, demo = false) => {
@@ -150,6 +151,7 @@ export default function App() {
       </section>
       {message && <div className={`notice ${message.error ? 'notice-error' : ''}`} role={message.error ? 'alert' : 'status'}><span>{t(message.key)}</span><button aria-label={t('closeMessage')} onClick={() => setMessage(null)}><X size={16} /></button></div>}
       {warnings.length > 0 && <div className="notice notice-warning"><span>{warnings.join(' · ')}</span></div>}
+      {overlaps.length > 0 && <div className="notice notice-warning" role="status" data-testid="room-overlap-warning"><span>{t('roomOverlapWarning', { count: overlaps.length })} {overlaps.slice(0, 5).map(pair => pair.map(id => { const index = project!.rooms.findIndex(room => room.id === id); return `#${index + 1} «${project!.rooms[index].name}»`; }).join(' / ')).join(' · ')}{overlaps.length > 5 ? ' …' : ''}</span></div>}
       <section className="editor-workspace" aria-label={t('editor')}>
         <aside className="room-sidebar"><div className="panel-heading"><h2>{t('rooms')}</h2><span className="count-badge">{project?.rooms.length ?? 0}</span></div>
           <p className="panel-description">{t('roomsDescription')}</p>

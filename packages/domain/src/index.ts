@@ -1,4 +1,5 @@
 export * from './geometry';
+export * from './overlaps';
 export * from './schema';
 
 import { polygonArea, type Point } from './geometry';
