@@ -1,0 +1,12 @@
+{
+  "name": "@roompilot/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite --host 127.0.0.1", "build": "tsc -p tsconfig.json && vite build", "typecheck": "tsc -p tsconfig.json" },
+  "dependencies": {
+    "@roompilot/domain": "workspace:*", "react": "^19.1.0", "react-dom": "^19.1.0",
+    "three": "^0.180.0", "@react-three/fiber": "^9.3.0", "lucide-react": "^0.468.0"
+  },
+  "devDependencies": { "vite": "^7.3.0", "@vitejs/plugin-react": "^5.0.0", "@types/react": "^19.1.0", "@types/react-dom": "^19.1.0", "@types/three": "^0.180.0" }
+}

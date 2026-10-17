@@ -1,0 +1,21 @@
+{
+  "name": "roompilot",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @roompilot/web --filter @roompilot/server dev",
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
