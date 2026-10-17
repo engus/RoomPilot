@@ -5,12 +5,25 @@ export class ApiError extends Error {
   constructor(public readonly key: TranslationKey) { super(key); }
 }
 
-export async function recognize(file: File): Promise<{ project: Project; warnings: string[] }> {
+export const PROVIDER_IDS = ['openai', 'gemini', 'openrouter'] as const;
+export type ProviderId = typeof PROVIDER_IDS[number];
+export const PROVIDER_NAMES: Record<ProviderId, string> = { openai: 'OpenAI', gemini: 'Google Gemini', openrouter: 'OpenRouter' };
+export interface ProviderStatus { id: ProviderId; configured: boolean; model: string | null }
+export interface ProviderHealth { defaultProvider: ProviderId; providers: ProviderStatus[] }
+const providerErrors: Record<string, TranslationKey> = {
+  provider_unconfigured: 'recognitionUnavailable', provider_auth: 'providerAuth', provider_quota: 'providerQuota',
+  provider_rate_limit: 'providerRateLimit', recognition_timeout: 'recognitionTimeout', invalid_result: 'recognitionInvalid',
+};
+
+export async function recognize(file: File, provider: ProviderId = 'openai'): Promise<{ project: Project; warnings: string[] }> {
   const form = new FormData();
   form.append('file', file);
-  const response = await fetch('/api/recognize', { method: 'POST', body: form });
+  const response = await fetch(`/api/recognize?provider=${encodeURIComponent(provider)}`, { method: 'POST', body: form });
   const body: unknown = await response.json();
-  if (!response.ok) throw new ApiError(response.status === 503 ? 'recognitionUnavailable' : 'recognitionFailed');
+  if (!response.ok) {
+    const code = typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string' ? body.code : '';
+    throw new ApiError(Object.hasOwn(providerErrors, code) ? providerErrors[code] : response.status === 503 ? 'recognitionUnavailable' : 'recognitionFailed');
+  }
   if (typeof body !== 'object' || body === null || !('project' in body)) throw new ApiError('recognitionFailed');
   return { project: ProjectSchema.parse(body.project), warnings: 'warnings' in body && Array.isArray(body.warnings) ? body.warnings.filter((item): item is string => typeof item === 'string') : [] };
 }

@@ -1,4 +1,9 @@
 export const en = {
+  aiProvider: 'AI provider', providerModel: 'Model', selectedProviderDisclosure: 'Recognize sends this image to {provider}. The result is a draft for review.',
+  providerSetupHint: 'Set this provider’s key and model in the server .env file, then restart the server.', providerConfigOnly: 'Key and model are set. Account access and available quota have not been checked.',
+  geminiPrivacy: 'On the Gemini free tier, submitted content may be used to improve Google products.', openrouterPrivacy: 'OpenRouter forwards the image to a model provider. With openrouter/free, the model can vary between requests.',
+  providerAuth: 'The provider rejected the key or model access. Check this provider’s server settings.', providerQuota: 'The provider balance or spending quota is exhausted. Check API billing before retrying.', providerRateLimit: 'The provider request limit was reached. Wait before retrying; the free quota may reset later.',
+  recognitionTimeout: 'Recognition timed out. You can try again or continue editing manually.', recognitionInvalid: 'The provider returned an incomplete or invalid draft. Your plan was kept. Try again or draw rooms manually.',
   recognitionStale: 'The plan changed while recognition was running. Your edits were kept; the AI draft was not applied.',
   brandTagline: 'YOUR HOME. A NEW DIMENSION.', studio: 'Floor plan studio', importProject: 'Import project', exportProject: 'Export project',
   language: 'Interface language', theme: 'Color theme', light: 'Light', dark: 'Dark', system: 'System',
@@ -17,6 +22,11 @@ export const en = {
 } as const;
 export type TranslationKey = keyof typeof en;
 export const ru: Record<TranslationKey, string> = {
+  aiProvider: 'AI-провайдер', providerModel: 'Модель', selectedProviderDisclosure: 'По кнопке «Распознать» изображение отправится в {provider}. Результат — черновик для проверки.',
+  providerSetupHint: 'Укажите ключ и модель этого провайдера в серверном .env и перезапустите сервер.', providerConfigOnly: 'Ключ и модель указаны. Доступ к модели и остаток квоты ещё не проверены.',
+  geminiPrivacy: 'На бесплатном тарифе Gemini переданные данные могут использоваться для улучшения продуктов Google.', openrouterPrivacy: 'OpenRouter передаёт изображение провайдеру модели. При выборе openrouter/free модель может меняться между запросами.',
+  providerAuth: 'Провайдер отклонил ключ или доступ к модели. Проверьте его настройки на сервере.', providerQuota: 'Исчерпан баланс или бюджет API-провайдера. Проверьте оплату API перед повторным запросом.', providerRateLimit: 'Достигнут лимит запросов провайдера. Подождите перед повтором; бесплатная квота может обновиться позже.',
+  recognitionTimeout: 'Истекло время ожидания распознавания. Повторите запрос или продолжите вручную.', recognitionInvalid: 'Провайдер вернул незавершённый или некорректный черновик. Ваш план сохранён. Повторите запрос или нарисуйте комнаты вручную.',
   recognitionStale: 'План изменился во время распознавания. Ваши правки сохранены; черновик ИИ не применён.',
   brandTagline: 'ВАШ ДОМ. НОВОЕ ИЗМЕРЕНИЕ.', studio: 'Студия планировки', importProject: 'Импорт проекта', exportProject: 'Экспорт проекта',
   language: 'Язык интерфейса', theme: 'Цветовая тема', light: 'Светлая', dark: 'Тёмная', system: 'Системная',

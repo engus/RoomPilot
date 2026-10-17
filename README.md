@@ -6,7 +6,7 @@ A 3D home dashboard for Home Assistant, with a visual floor-plan editor and opti
 
 ## Milestone 1
 - Import a PNG/JPEG floor plan, including a photograph of a paper plan.
-- Recognize room outlines, names, printed areas, and explicitly labelled ceiling height through a configured OpenAI API model.
+- Recognize room outlines, names, printed areas, and explicitly labelled ceiling height through OpenAI, Google Gemini, or OpenRouter. Select the destination before sending an image.
 - Review overlays on the original image; edit room names, reported areas, and vertices; draw and delete rooms manually.
 - Calibrate scale using two points and one known distance. Keep printed areas separate from geometrically calculated areas.
 - Confirm ceiling height, preview in 2D/3D, and export/import a versioned JSON project.
@@ -32,16 +32,33 @@ For recognition, copy `.env.example` to `.env` in the repository root and config
 ```dotenv
 OPENAI_API_KEY=your-own-key
 OPENAI_MODEL=your-vision-model-id
+GEMINI_API_KEY=your-google-ai-studio-key
+GEMINI_MODEL=gemini-3.8-flash
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_MODEL=openrouter/free
+AI_PROVIDER=openai
 PORT=3001
 ```
 
-Choose a model available in your account that supports image input and Structured Outputs through the Responses API. There is no assumed default model. Restart the server after changing `.env`. If you change `PORT`, update the proxy in `apps/web/vite.config.ts` as well.
+Configure only the providers you want to use; leave other keys empty. Keys are independent and are never sent to another provider or to the browser. Do not use `VITE_` variables for credentials.
+
+- OpenAI: create a project key at https://platform.openai.com/api-keys and explicitly set an image-input / Structured Outputs model available to the account. Requests use the Responses API.
+- Gemini: create a key in https://aistudio.google.com/apikey and set `GEMINI_API_KEY`. The example model `gemini-3.8-flash` supports image input and structured JSON; free-tier availability and quotas depend on the project. Requests use Generate Content.
+- OpenRouter: create a key at https://openrouter.ai/settings/keys and set `OPENROUTER_API_KEY`. `openrouter/free` is an example free router that selects a compatible model; its selection and availability may vary. To compare recognition quality consistently, configure a specific model supporting images and JSON Schema. Requests require structured-output support; incompatible models/endpoints fail explicitly.
+
+`AI_PROVIDER` controls the initial UI selection and defaults to `openai`. The selector displays all three providers and their server configuration status. A key and model being present does not establish working credentials, model access, or available balance. There are no automatic retries or fallback between services. The interface distinguishes exhausted balance, request limits, access errors, timeouts, and invalid drafts without displaying raw upstream diagnostics.
+
+Restart the API after changing `.env`, then refresh the browser to update configuration status. If you change `PORT`, update the proxy in `apps/web/vite.config.ts` as well. `RECOGNITION_TIMEOUT_MS` can be increased up to 120000 for slower models.
+
+Gemini 3/4 requests use the supported `LOW` thinking level to keep interactive recognition latency bounded; earlier Gemini models do not receive this option. Gemini receives a schema without nested array bounds because the bounded version was rejected during live grammar compilation. Room counts, vertex counts, coordinates, topology, and all other limits are still enforced locally before a draft is returned to the browser.
 
 Without a key, you can open the labelled demo, import a saved project, or upload an image and draw room outlines manually. Recognition reports unavailable configuration rather than substituting a simulated result.
 
 ## Privacy and saving
 
 Recognition sends the image to the configured cloud provider only when explicitly requested. Provider API usage is billed separately from the application. Credentials remain on the server. The server does not persist uploaded images to disk.
+
+The interface names the selected destination before transmission. Gemini's free tier may use submitted content to improve Google products; review https://ai.google.dev/gemini-api/terms before sending a private plan. OpenRouter forwards requests to the serving model provider, whose data policy also applies: https://openrouter.ai/privacy. A free API tier is limited and is not a guarantee of permanently free or unlimited service.
 
 **There is no autosave yet.** Use the export action before closing the tab. The JSON includes the source floor-plan image and should be treated as private. Do not publish it in Git. The import action restores a saved project.
 

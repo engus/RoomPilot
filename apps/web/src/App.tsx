@@ -3,7 +3,7 @@ import { ArrowDownToLine, ArrowUpFromLine, Box, Check, ChevronRight, CircleHelp,
 import { calibrateProject, createProject, getComputedArea, isReadyFor3D, ProjectSchema, validatePolygon, type Point, type Project, type Room } from '@roompilot/domain';
 import PlanCanvas, { ROOM_COLORS, type EditorMode } from './components/PlanCanvas';
 import { createDemo } from './demo';
-import { readImage, recognize, verifyImportedSource } from './api';
+import { readImage, recognize, verifyImportedSource, PROVIDER_IDS, PROVIDER_NAMES, type ProviderId, type ProviderStatus, type ProviderHealth } from './api';
 import { MAX_PROJECT_BYTES, parseProjectText, updateCeiling } from './editor';
 import { useInterface } from './i18n';
 import { ApiError } from './api';
@@ -36,12 +36,23 @@ export default function App() {
   const [message, setMessage] = useState<{ key: TranslationKey; error: boolean } | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [recognitionConfigured, setRecognitionConfigured] = useState<boolean | null>(null);
+  const [providers, setProviders] = useState<ProviderStatus[] | null>(null);
+  const [provider, setProvider] = useState<ProviderId>('openai');
+  const selectedProvider = providers?.find(item => item.id === provider);
+  const recognitionConfigured = Boolean(selectedProvider?.configured);
   const [isDemo, setIsDemo] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null), jsonInput = useRef<HTMLInputElement>(null);
   const generation = useRef(0);
   const busyOperation = useRef(0);
-  useEffect(() => { void fetch('/api/health').then(response => response.json()).then((data: { recognitionConfigured?: boolean }) => setRecognitionConfigured(Boolean(data.recognitionConfigured))).catch(() => setRecognitionConfigured(false)); }, []);
+  useEffect(() => {
+    let active = true;
+    void fetch('/api/health').then(response => { if (!response.ok) throw new Error('Health unavailable'); return response.json(); }).then((data: ProviderHealth) => {
+      if (!active) return;
+      setProviders(Array.isArray(data.providers) ? data.providers.filter(item => PROVIDER_IDS.includes(item.id)) : []);
+      if (PROVIDER_IDS.includes(data.defaultProvider)) setProvider(data.defaultProvider);
+    }).catch(() => { if (active) setProviders([]); });
+    return () => { active = false; };
+  }, []);
   const notify = (key: TranslationKey, error = false) => setMessage({ key, error });
   const selected = project?.rooms.find(room => room.id === selectedId) ?? null;
   const ready = project ? isReadyFor3D(project) : false;
@@ -74,7 +85,7 @@ export default function App() {
     try {
       const blob = await (await fetch(project.source.dataUrl)).blob();
       const mime = blob.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
-      const result = await recognize(new File([blob], mime === 'image/jpeg' ? 'plan.jpeg' : 'plan.png', { type: mime }));
+      const result = await recognize(new File([blob], mime === 'image/jpeg' ? 'plan.jpeg' : 'plan.png', { type: mime }), provider);
       if (generation.current !== token) return;
       if (revision.current !== startedAtRevision) { notify('recognitionStale'); return; }
       replace({ ...result.project, name: project.name }); setWarnings(result.warnings); notify('recognitionDone');
@@ -167,7 +178,28 @@ export default function App() {
           </section>
         </aside>
       </section>
-      <section className="below-workspace"><div className="recognition-card"><span className="recognition-icon"><ScanLine size={24} strokeWidth={1.4} /></span><div><h3>{t('recognitionHelp')}</h3><p>{t('recognitionDisclosure')}</p><span className={`provider-status ${recognitionConfigured ? 'available' : ''}`}><span className="green-dot" />{recognitionConfigured === null ? t('checkingProvider') : recognitionConfigured ? t('providerConfigured') : t('providerUnavailable')}</span></div><button className="button outline" disabled={!project || busy} onClick={() => void runRecognition()}>{busy ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />}{t('recognizePlan')}</button></div><div className="readiness-card"><Box size={21} strokeWidth={1.4} /><div><h3>{ready ? t('ready3D') : t('steps3D')}</h3><p>{project ? ready ? t('open3DHint') : missing.join(' · ') : t('steps3DHint')}</p></div></div></section>
+      <section className="below-workspace">
+        <div className="recognition-card">
+          <span className="recognition-icon"><ScanLine size={24} strokeWidth={1.4} /></span>
+          <div className="recognition-content">
+            <h3>{t('recognitionHelp')}</h3>
+            <div className="provider-controls">
+              <label htmlFor="ai-provider">{t('aiProvider')}</label>
+              <select id="ai-provider" value={provider} disabled={busy || providers === null} onChange={event => { if (PROVIDER_IDS.includes(event.target.value as ProviderId)) { setProvider(event.target.value as ProviderId); setMessage(null); } }}>
+                {PROVIDER_IDS.map(id => <option key={id} value={id}>{PROVIDER_NAMES[id]}</option>)}
+              </select>
+              {selectedProvider?.model && <span className="provider-model">{t('providerModel')}: <code>{selectedProvider.model}</code></span>}
+            </div>
+            <p>{t('selectedProviderDisclosure', { provider: PROVIDER_NAMES[provider] })}</p>
+            {provider === 'gemini' && <p className="provider-note">{t('geminiPrivacy')}</p>}
+            {provider === 'openrouter' && <p className="provider-note">{t('openrouterPrivacy')}</p>}
+            <span className={`provider-status ${recognitionConfigured ? 'available' : ''}`}><span className="green-dot" />{providers === null ? t('checkingProvider') : recognitionConfigured ? t('providerConfigOnly') : t('providerUnavailable')}</span>
+            {providers !== null && !recognitionConfigured && <p className="provider-note">{t('providerSetupHint')}</p>}
+          </div>
+          <button className="button outline" disabled={!project || busy || !recognitionConfigured} onClick={() => void runRecognition()}>{busy ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />}{t('recognizePlan')}</button>
+        </div>
+        <div className="readiness-card"><Box size={21} strokeWidth={1.4} /><div><h3>{ready ? t('ready3D') : t('steps3D')}</h3><p>{project ? ready ? t('open3DHint') : missing.join(' · ') : t('steps3DHint')}</p></div></div>
+      </section>
       <footer><span>ROOMPILOT <span className="footer-separator">/</span> {t('footerTagline')}</span><span>{t('previewLimitation')}</span></footer>
     </main>
   </div>;

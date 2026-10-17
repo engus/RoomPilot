@@ -27,7 +27,7 @@ Interior-photo reconstruction, furniture, doors/windows, HA control, multiple fl
 
 - pnpm 11 monorepo: `apps/web`, `apps/server`, `packages/domain`.
 - Web: TypeScript, React, Vite; SVG for the small 2D editor; Three.js / React Three Fiber for 3D.
-- Server: Node.js, Fastify, multipart uploads, Sharp, and a thin OpenAI Responses API adapter.
+- Server: Node.js, Fastify, multipart uploads, Sharp, and thin fetch adapters for OpenAI Responses, Gemini Generate Content, and OpenRouter Chat Completions. Keys and model selection are server configured; the browser chooses only an allowlisted provider.
 - Domain: Zod schemas and pure geometry/calibration functions.
 - Projects currently export to JSON. A server-side project library and SQLite belong to a later milestone; this workflow does not require a database.
 - SVG replaces the previously proposed Konva for this small editor: standard DOM interactions and one fewer canvas engine. Revisit when the editor becomes more complex.
@@ -46,6 +46,8 @@ The current development server binds only to loopback. Production packaging, net
 The manual editor and normal device control should not depend on an AI subscription. Users may supply their own API key and pay their provider directly. A local vision model can be supported later on suitable separate hardware.
 
 A floor-plan image is transmitted only on the explicit recognition action. The server does not retain uploaded images on disk. Exported JSON includes the private source image. There is currently no autosave, and users must export their work before leaving.
+
+Recognition supports an explicit OpenAI / Gemini / OpenRouter selection with no cross-service fallback. Provider configuration presence is distinct from account access and quota. Gemini free-tier content may be used for product improvement; OpenRouter forwards content to its model provider. Configure keys separately in the ignored root `.env` file.
 
 ## Next milestones
 

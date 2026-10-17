@@ -11,7 +11,17 @@ Date: 2026-10-17. Environment: Windows, Node.js 24.19.0, pnpm 11.25.0.
 - 3D screenshot inspected after the browser run.
 - Independent review performed. Four important findings were reproduced and fixed: small-coordinate polygon intersections, relative calibration validation, imported JPEG content type, and stale recognition overwriting edits.
 
-No live provider request was made. API quality, model availability, Raspberry Pi/ARM deployment, HA integration, and production/public hosting are not verified.
+The initial baseline used mocked providers only. A subsequent owner-authorized OpenAI smoke test accepted the configured credentials and found the configured model, but inference returned HTTP 429 with `credit_balance_exhausted`. No rooms were recognized. Floor-plan recognition quality, OpenRouter live inference, Raspberry Pi/ARM deployment, HA integration, and production/public hosting remain unverified.
+
+## Selectable AI providers
+
+- OpenAI, Gemini, and OpenRouter have independent server-side key/model settings and fixed provider endpoints. The browser selects a provider ID only; credentials are never returned by health metadata.
+- Unit/integration suite: 57 passing tests, including provider-specific payloads, explicit routing, missing credentials, safe billing/access errors, and invalid/truncated/refused responses.
+- Typechecks and production build pass; the existing 3D chunk-size warning remains.
+- Eight browser scenarios pass. The additional scenario changes provider without changing the plan, verifies the selected destination, locks the selector during inference, displays a localized quota error, and preserves editing after failure.
+- Automated provider requests are intercepted and do not spend credits. These checks establish request/response contract handling, not recognition quality or account availability.
+- Independent review found an outer-timeout error-code gap, fixed with a failing/passing API regression test. Live Gemini contract probes exposed a MIME enum mismatch in the guide example and a nested-array schema compilation rejection; both received failing/passing adapter checks. The API reference, rather than the guide's MIME example, establishes `APPLICATION_JSON`. Array limits remain enforced by domain validation after generation.
+- With the owner's authorization, Gemini model metadata and minimal text/schema probes returned HTTP 200. The private floor-plan test subsequently reached the 120-second timeout; the next attempt using lower thinking depth returned the adapter's provider balance/budget error. No recognized rooms were produced, and no further attempts or automatic provider switch were made. Gemini 3/4 now use `LOW`; earlier Gemini models do not receive the unsupported thinking-level option. Successful end-to-end recognition of a real floor plan remains unverified.
 
 ## Workspace rename
 

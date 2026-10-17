@@ -16,6 +16,8 @@ async function importFixture(page: Page, mime = 'image/png') {
 }
 
 test.beforeEach(async ({ page }) => {
+  // Configuration is deterministic; every recognition test intercepts the external operation.
+  await page.route('**/api/health', route => route.fulfill({ json: { status: 'ok', defaultProvider: 'openai', recognitionConfigured: true, providers: [{ id: 'openai', configured: true, model: 'test-model' }, { id: 'gemini', configured: false, model: null }, { id: 'openrouter', configured: false, model: null }] } }));
   await page.addInitScript(() => {
     if (!localStorage.getItem('roompilot.language')) localStorage.setItem('roompilot.language', 'ru');
     if (!localStorage.getItem('roompilot.theme')) localStorage.setItem('roompilot.theme', 'light');
@@ -103,7 +105,7 @@ test('persists language and appearance preferences across a reload', async ({ pa
 
 test('draws and calibrates an uploaded plan without sending it to AI', async ({ page }) => {
   let recognitionRequests = 0;
-  page.on('request', request => { if (request.url().endsWith('/api/recognize')) recognitionRequests++; });
+  page.on('request', request => { if (new URL(request.url()).pathname === '/api/recognize') recognitionRequests++; });
   await page.goto('/');
   const png = await page.evaluate(() => {
     const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 400;
@@ -139,8 +141,8 @@ test('draws and calibrates an uploaded plan without sending it to AI', async ({ 
 test('preserves the JPEG content type when recognizing an imported project', async ({ page }) => {
   await page.goto('/');
   const project = await importFixture(page, 'image/jpeg');
-  await page.route('**/api/recognize', route => route.fulfill({ json: { project, warnings: [] } }));
-  const requestPromise = page.waitForRequest('**/api/recognize');
+  await page.route('**/api/recognize*', route => route.fulfill({ json: { project, warnings: [] } }));
+  const requestPromise = page.waitForRequest('**/api/recognize*');
   await page.getByRole('button', { name: 'Распознать план', exact: true }).click();
   const request = await requestPromise;
   expect(request.postDataBuffer()!.toString('latin1').slice(0, 200)).toMatch(/Content-Type: image\/jpeg/i);
@@ -151,13 +153,50 @@ test('preserves room edits made while recognition is in flight', async ({ page }
   const project = await importFixture(page);
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/api/recognize', async route => { await gate; await route.fulfill({ json: { project: { ...project, id: 'recognized-project', rooms: project.rooms.map(room => ({ ...room, id: 'recognized-room' })) }, warnings: [] } }); });
-  const requestPromise = page.waitForRequest('**/api/recognize');
+  await page.route('**/api/recognize*', async route => { await gate; await route.fulfill({ json: { project: { ...project, id: 'recognized-project', rooms: project.rooms.map(room => ({ ...room, id: 'recognized-room' })) }, warnings: [] } }); });
+  const requestPromise = page.waitForRequest('**/api/recognize*');
   await page.getByRole('button', { name: 'Распознать план', exact: true }).click();
   await requestPromise;
   await page.getByLabel('Название комнаты', { exact: true }).fill('Кабинет');
-  const responsePromise = page.waitForResponse('**/api/recognize');
+  const responsePromise = page.waitForResponse('**/api/recognize*');
   release(); await responsePromise;
   await expect(page.getByRole('button', { name: 'Распознать план', exact: true })).toBeEnabled();
   await expect(page.getByLabel('Название комнаты', { exact: true })).toHaveValue('Кабинет');
+});
+
+test('selects the recognition destination without changing the plan and shows safe quota errors', async ({ page }) => {
+  await page.route('**/api/health', route => route.fulfill({ json: { status: 'ok', defaultProvider: 'openai', recognitionConfigured: true, providers: [
+    { id: 'openai', model: 'openai-model', configured: true }, { id: 'gemini', model: 'gemini-model', configured: true }, { id: 'openrouter', model: 'vision:free', configured: true },
+  ] } }));
+  await page.goto('/');
+  const project = await importFixture(page);
+  await page.getByLabel('Название комнаты', { exact: true }).fill('Моя кухня');
+  const selector = page.getByLabel('AI-провайдер', { exact: true });
+  await selector.selectOption('gemini');
+  await expect(page.getByLabel('Название комнаты', { exact: true })).toHaveValue('Моя кухня');
+  await expect(page.getByText('gemini-model', { exact: true })).toBeVisible();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const destinations: string[] = [];
+  await page.route('**/api/recognize*', async route => {
+    const provider = new URL(route.request().url()).searchParams.get('provider')!;
+    destinations.push(provider);
+    if (provider === 'gemini') { await gate; await route.fulfill({ json: { project, warnings: [] } }); }
+    else await route.fulfill({ status: 429, json: { error: 'PRIVATE UPSTREAM TEXT', code: 'provider_quota' } });
+  });
+  const request = page.waitForRequest('**/api/recognize*');
+  await page.getByRole('button', { name: 'Распознать план', exact: true }).click();
+  await request;
+  await expect(selector).toBeDisabled();
+  release();
+  await expect(selector).toBeEnabled();
+  await selector.selectOption('openrouter');
+  await page.getByRole('button', { name: 'Распознать план', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('баланс');
+  await expect(page.getByRole('alert')).not.toContainText('PRIVATE');
+  expect(destinations).toEqual(['gemini', 'openrouter']);
+  await expect(page.getByTestId('plan-canvas')).toBeVisible();
+  await page.getByTestId('language-select').selectOption('en');
+  await expect(page.getByLabel('AI provider', { exact: true })).toHaveValue('openrouter');
+  await page.screenshot({ path: 'test-results/roompilot-providers.png', fullPage: true });
 });

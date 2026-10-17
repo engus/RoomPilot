@@ -16,13 +16,13 @@ const png = () => sharp({ create: { width: 20, height: 10, channels: 3, backgrou
 describe('recognition API', () => {
   it('reports missing credentials and refuses recognition without demo substitution', async () => {
     const server = app({ config: {} });
-    expect((await server.inject('/api/health')).json()).toEqual({ status: 'ok', recognitionConfigured: false });
+    expect((await server.inject('/api/health')).json()).toMatchObject({ status: 'ok', recognitionConfigured: false });
     expect((await server.inject(upload(await png()))).statusCode).toBe(503);
   });
   it('only reports configuration when key and model are both explicitly supplied', async () => {
     const server = app({ config: { apiKey: 'private', model: 'configured-model' } });
     const health = await server.inject('/api/health');
-    expect(health.json()).toEqual({ status: 'ok', recognitionConfigured: true });
+    expect(health.json()).toMatchObject({ status: 'ok', recognitionConfigured: true });
     expect(health.body).not.toContain('private');
   });
   it('returns normalized pixels and an unscaled, unconfirmed draft from a real image', async () => {
@@ -39,6 +39,29 @@ describe('recognition API', () => {
     expect(project.rooms[0]).toMatchObject({ name: 'Комната 1', reportedAreaM2: null, polygon: [{ x: 0, y: 0 }, { x: 1800, y: 0 }, { x: 1800, y: 900 }, { x: 0, y: 900 }] });
     expect(project.calibration).toBeNull(); expect(project.ceilingHeightM).toBeNull(); expect(project.ceilingHeightConfirmed).toBe(false);
     expect(warnings).toEqual(['Проверьте контуры']);
+  });
+  it('reports each provider configuration without exposing keys', async () => {
+    const server = app({ config: { defaultProvider: 'gemini', apiKey: 'private-openai', model: 'openai-model', gemini: { apiKey: 'private-google', model: 'gemini-model' }, openrouter: { apiKey: 'private-router' } } });
+    const response = await server.inject('/api/health');
+    expect(response.json()).toMatchObject({ defaultProvider: 'gemini', providers: [{ id: 'openai', configured: true, model: 'openai-model' }, { id: 'gemini', configured: true, model: 'gemini-model' }, { id: 'openrouter', configured: false, model: null }] });
+    expect(response.body).not.toMatch(/private-|apiKey/);
+  });
+  it('routes to the requested provider without falling back and validates the resulting draft', async () => {
+    const server = app({ providers: { openai: async () => { throw new Error('wrong provider'); }, gemini: async () => ({ ...draft, rooms: [{ ...draft.rooms[0], name: 'Google room' }] }) } });
+    const response = await server.inject({ ...upload(await png()), url: '/api/recognize?provider=gemini' });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().project.rooms[0].name).toBe('Google room');
+  });
+  it('uses the server default provider only when no selection was supplied', async () => {
+    const server = app({ config: { defaultProvider: 'openrouter' }, providers: { openrouter: async () => draft } });
+    expect((await server.inject(upload(await png()))).statusCode).toBe(200);
+  });
+  it('rejects unknown and unconfigured providers before processing an image', async () => {
+    const server = app({ provider: async () => { throw new Error('no fallback'); } });
+    const unknown = await server.inject({ ...upload(Buffer.from('invalid')), url: '/api/recognize?provider=https://attacker.invalid' });
+    expect(unknown.statusCode).toBe(400); expect(unknown.json().code).toBe('invalid_provider');
+    const missing = await server.inject({ ...upload(Buffer.from('invalid')), url: '/api/recognize?provider=gemini' });
+    expect(missing.statusCode).toBe(503); expect(missing.json().code).toBe('provider_unconfigured');
   });
   it.each(['https://attacker.invalid', 'null', ''])('rejects an untrusted or absent origin (%s) before spending provider credit', async untrusted => {
     const server = app({ provider: async () => { throw new Error('must never call provider'); } });
@@ -77,7 +100,7 @@ describe('recognition API', () => {
     let signal: AbortSignal | undefined;
     const server = app({ provider: async (_image, cancellation) => { signal = cancellation; return new Promise(() => {}); }, config: { requestTimeoutMs: 20 } });
     const response = await server.inject(upload(await png()));
-    expect(response.statusCode).toBe(504); expect(signal?.aborted).toBe(true);
+    expect(response.statusCode).toBe(504); expect(response.json().code).toBe('recognition_timeout'); expect(signal?.aborted).toBe(true);
   });
   it('rejects overlapping recognition requests and releases the slot after completion', async () => {
     let complete!: (value: unknown) => void; let started!: () => void;
