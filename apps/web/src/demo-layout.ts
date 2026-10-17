@@ -23,6 +23,10 @@ export const DEMO_OPENINGS: Opening[] = [
   {"id": "door-right-small","kind": "door","heightM": 2.2,"sillHeightM": 0,"spans": [{"roomId": "right-small","edgeIndex": 2,"start": 0.4132231404958678,"end": 0.9090909090909091},{"roomId": "main","edgeIndex": 10,"start": 0.140625,"end": 0.609375}]},
   {"id": "door-left-small","kind": "door","heightM": 2.2,"sillHeightM": 0,"spans": [{"roomId": "left-small","edgeIndex": 1,"start": 0.12121212121212122,"end": 0.8787878787878788},{"roomId": "main","edgeIndex": 21,"start": 0.12121212121212122,"end": 0.8787878787878788}]},
   {"id": "door-entrance","kind": "door","heightM": 2.2,"sillHeightM": 0,"spans": [{"roomId": "main","edgeIndex": 13,"start": 0,"end": 1}]},
+  // Owner-confirmed wraparound glazing; full-height panels are a stylized preview.
+  {"id": "balcony-glazing-front","kind": "window","heightM": 2.5,"sillHeightM": 0,"spans": [{"roomId": "balcony","edgeIndex": 0,"start": 0,"end": 1}]},
+  {"id": "balcony-glazing-right","kind": "window","heightM": 2.5,"sillHeightM": 0,"spans": [{"roomId": "balcony","edgeIndex": 1,"start": 0,"end": 1}]},
+  {"id": "balcony-glazing-left","kind": "window","heightM": 2.5,"sillHeightM": 0,"spans": [{"roomId": "balcony","edgeIndex": 3,"start": 0,"end": 1}]},
 ];
 export const DEMO_CALIBRATION: NonNullable<Project['calibration']> = {"points": [{"x": 315, "y": 567}, {"x": 763, "y": 567}], "lengthM": 5.88, "metresPerPixel": 0.013125};
 export const DEMO_ZONES: (Omit<Zone, 'name'> & { nameKey: TranslationKey })[] = [

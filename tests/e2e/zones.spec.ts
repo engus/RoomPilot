@@ -6,11 +6,11 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
-test('opens the approved apartment demo with ten apertures and three wall-free zones ready for 3D', async ({ page }) => {
+test('opens the approved apartment demo with balcony glazing and three wall-free zones ready for 3D', async ({ page }) => {
   let aiCalls = 0;
   page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/recognize')) aiCalls++; });
   await page.getByRole('button', { name: 'Открыть демо', exact: true }).click();
-  await expect(page.getByTestId('opening-symbol')).toHaveCount(10);
+  await expect(page.getByTestId('opening-symbol')).toHaveCount(13);
   await expect(page.getByTestId('zone-shape')).toHaveCount(3);
   await page.getByRole('button', { name: 'Выбрать зону Гостиная', exact: true }).click();
   await expect(page.getByLabel('Название зоны', { exact: true })).toHaveValue('Гостиная');
@@ -22,7 +22,8 @@ test('opens the approved apartment demo with ten apertures and three wall-free z
   const stream = await (await download).createReadStream(); const chunks: Buffer[] = [];
   for await (const chunk of stream) chunks.push(Buffer.from(chunk));
   const bytes = Buffer.concat(chunks), saved = JSON.parse(bytes.toString());
-  expect(saved.schemaVersion).toBe(4); expect(saved.rooms).toHaveLength(6); expect(saved.openings).toHaveLength(10);
+  expect(saved.schemaVersion).toBe(4); expect(saved.rooms).toHaveLength(6); expect(saved.openings).toHaveLength(13);
+  expect(saved.openings.filter((opening: { id: string }) => opening.id.startsWith('balcony-glazing-'))).toHaveLength(3);
   expect(saved.zones).toHaveLength(3); expect(saved.zones.some((zone: { name: string }) => zone.name === 'Семейная гостиная')).toBe(true);
   await page.screenshot({ path: 'test-results/roompilot-demo-zones-3d.png', fullPage: true });
   await page.reload();
@@ -60,7 +61,7 @@ test('draws a zone inside a room, rejects sibling overlap and keeps room walls u
   await page.getByRole('button', { name: 'Отменить рисование зоны', exact: true }).click();
   await page.getByRole('button', { name: 'Удалить комнату', exact: true }).click();
   await expect(page.getByTestId('zone-shape')).toHaveCount(3);
-  await expect(page.getByTestId('opening-symbol')).toHaveCount(7);
+  await expect(page.getByTestId('opening-symbol')).toHaveCount(10);
 });
 
 test('validates zone vertex drags and refuses room edits that would cut away its zones', async ({ page }) => {

@@ -36,6 +36,8 @@ Unattended interior-photo reconstruction, multiple floors, native/PWA packaging,
 
 The public demo uses the owner-authorized assisted apartment geometry, redrawn in code, with their confirmed room names: balcony, parents’ bedroom, children’s bedroom, combined bathroom/WC, storage, and the shared kitchen/living/corridor space. The three functions in the shared space are separate zones. Its apartment brief records three habitable rooms and approximately 58 m² excluding the balcony, one combined bathroom/WC, one kitchen, one balcony and one storage room. Printed areas sum to 58.29 m² excluding the balcony and 60.67 m² including it; approximate context does not change these values. The original floor-plan pixels and annotated image remain private. Demo calibration and a 2.5 m ceiling are supplied for immediate 3D.
 
+The owner subsequently confirmed the balcony is glazed around its exposed perimeter. Three editable full-height window sections replace its outward-facing walls in the demo; the wall, door and window adjoining the apartment remain. The glass/frame dimensions are simplified dollhouse conventions pending photos, without changing room footprints or areas.
+
 ## Architecture
 
 - pnpm 11 monorepo: `apps/web`, `apps/server`, `packages/domain`.

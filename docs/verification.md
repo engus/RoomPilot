@@ -2,6 +2,13 @@
 
 Date: 2026-10-17. Environment: Windows, Node.js 24.19.0, pnpm 11.25.0.
 
+## Owner-confirmed wraparound balcony glazing
+
+- The owner clarified the balcony is glazed around its exposed perimeter. Added three ordinary full-height window sections on the balcony's front and two side edges. Existing apartment-facing wall, paired window and balcony door remain intact; room footprints, areas, ceiling and calibration are unchanged. Glass height/frame proportions are stylized pending photos, not measured specifications.
+- A new regression first failed because no exterior balcony glazing existed, then passed after the three sections were added. Independent sample points verify full-depth wall cuts on all three exterior sides and retained solid wall toward the apartment. The demo now has six doors and seven window objects, including the three glazing sections, with thirteen total apertures.
+- Verified export/import and parent deletion with updated browser expectations. Final checks: 146 unit/integration tests in 15 files, strict workspace typechecks, production build and 26 browser scenarios pass. The unchanged lazy 3D chunk retains the known Vite size warning. No renderer, schema, dependency or recognition changes were needed.
+- Exported the active document before editing, opened the updated demo, inspected the glass and frames from outside in daylight, and verified balcony selection. Private before-change backup and screenshot proof remain ignored. No provider or HA command was sent.
+
 ## Outdoor day/night and local real-time sunlight
 
 - The owner requested outdoor ambience while preparing kitchen/living/corridor photos, then supplied private location and an east-facing balcony orientation. Exact coordinates/address exist only in ignored local server configuration; no real location appears in committed examples, fixtures, screenshots, project exports or API responses. Product/agent documentation now prioritizes the apartment-first dollhouse, furnishing and subsequent HA integration over more editor work.
