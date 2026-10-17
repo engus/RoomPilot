@@ -104,3 +104,19 @@ it.each([
   await expect(recognizeImage(image, { apiKey: 'test-key', model: 'model' })).rejects.toMatchObject({ code });
   await expect(recognizeImage(image, { apiKey: 'test-key', model: 'model' })).rejects.not.toThrow(/PRIVATE|sk-secret/);
 });
+
+it.each([
+  { kind: 'crossing edges', polygon: [{ x: 0, y: 0 }, { x: 0.8, y: 0.8 }, { x: 0.8, y: 0 }, { x: 0, y: 0.5 }] },
+  { kind: 'a vertex touching a nonadjacent edge', polygon: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0.5, y: 1 }, { x: 0.5, y: 0 }, { x: 0, y: 1 }] },
+])('distinguishes invalid room topology in completed Gemini JSON: $kind', async ({ polygon }) => {
+  const draft = { rooms: [{ name: 'PRIVATE ROOM', reportedAreaM2: null, polygon }], ceilingHeightM: null, warnings: [] };
+  vi.stubGlobal('fetch', async () => Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(draft) }] } }] }));
+  await expect(recognizeImage(image, { gemini: { apiKey: 'key', model: 'model' } }, undefined, 'gemini')).rejects.toMatchObject({ statusCode: 502, code: 'invalid_geometry' });
+  await expect(recognizeImage(image, { gemini: { apiKey: 'key', model: 'model' } }, undefined, 'gemini')).rejects.not.toThrow(/PRIVATE/);
+});
+
+it('accepts a valid concave room in completed Gemini JSON', async () => {
+  const draft = { rooms: [{ name: null, reportedAreaM2: null, polygon: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 0.4 }, { x: 0.4, y: 0.4 }, { x: 0.4, y: 1 }, { x: 0, y: 1 }] }], ceilingHeightM: null, warnings: [] };
+  vi.stubGlobal('fetch', async () => Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify(draft) }] } }] }));
+  expect(await recognizeImage(image, { gemini: { apiKey: 'key', model: 'model' } }, undefined, 'gemini')).toEqual(draft);
+});

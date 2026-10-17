@@ -15,3 +15,8 @@ it('does not show arbitrary server messages as translation keys', async () => {
   vi.stubGlobal('fetch', async () => Response.json({ code: 'PRIVATE', error: 'SECRET' }, { status: 502 }));
   await expect(recognize(new File(['image'], 'plan.png'), 'openrouter')).rejects.toMatchObject({ key: 'recognitionFailed' });
 });
+
+it('maps invalid room geometry to its specific localized error without exposing the provider draft', async () => {
+  vi.stubGlobal('fetch', async () => Response.json({ code: 'invalid_geometry', error: 'PRIVATE ROOM' }, { status: 502 }));
+  await expect(recognize(new File(['image'], 'plan.png'), 'gemini')).rejects.toMatchObject({ key: 'recognitionGeometry' });
+});

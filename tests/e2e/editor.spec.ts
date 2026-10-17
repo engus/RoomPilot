@@ -200,3 +200,25 @@ test('selects the recognition destination without changing the plan and shows sa
   await expect(page.getByLabel('AI provider', { exact: true })).toHaveValue('openrouter');
   await page.screenshot({ path: 'test-results/roompilot-providers.png', fullPage: true });
 });
+
+test('explains invalid AI room outlines and preserves the source and edits for export', async ({ page }) => {
+  await page.goto('/');
+  const project = await importFixture(page);
+  await page.getByLabel('Название комнаты', { exact: true }).fill('Моя кухня');
+  await page.route('**/api/recognize*', route => route.fulfill({ status: 502, json: { code: 'invalid_geometry', error: 'PRIVATE PROVIDER DRAFT' } }));
+  await page.getByRole('button', { name: 'Распознать план', exact: true }).click();
+  const alert = page.getByRole('alert');
+  await expect(alert).toContainText('некорректные контуры');
+  await expect(alert).toContainText('экспортируйте');
+  await expect(alert).not.toContainText('PRIVATE');
+  await expect(page.getByRole('button', { name: 'Распознать план', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('Название комнаты', { exact: true })).toHaveValue('Моя кухня');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Экспорт проекта', exact: true }).click();
+  const stream = await (await downloadPromise).createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  const saved = JSON.parse(Buffer.concat(chunks).toString());
+  expect(saved.source).toEqual(project.source);
+  expect(saved.rooms).toEqual([{ ...project.rooms[0], name: 'Моя кухня' }]);
+});

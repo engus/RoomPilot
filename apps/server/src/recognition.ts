@@ -89,7 +89,14 @@ export async function recognizeImage(image: Source, config: RecognitionConfig, s
       throw providerFailure(response.status, null);
     }
     if (!response.ok) throw providerFailure(response.status, result);
-    return RecognitionSchema.parse(JSON.parse(providerText(result, provider)));
+    const draft = RecognitionSchema.safeParse(JSON.parse(providerText(result, provider)));
+    if (!draft.success) {
+      if (draft.error.issues.some(issue => issue.code === 'custom' && issue.path.length === 3 && issue.path[0] === 'rooms' && issue.path[2] === 'polygon')) {
+        throw new RecognitionError(502, 'The provider returned invalid room outlines.', 'invalid_geometry');
+      }
+      throw new RecognitionError(502, 'The provider did not return a valid recognition draft.', 'invalid_result');
+    }
+    return draft.data;
   } catch (error) {
     if (cancellation.aborted) throw new RecognitionError(504, 'Recognition timed out. Try again.', 'recognition_timeout');
     if (error instanceof RecognitionError) throw error;

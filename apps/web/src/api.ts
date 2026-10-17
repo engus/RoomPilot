@@ -13,6 +13,7 @@ export interface ProviderHealth { defaultProvider: ProviderId; providers: Provid
 const providerErrors: Record<string, TranslationKey> = {
   provider_unconfigured: 'recognitionUnavailable', provider_auth: 'providerAuth', provider_quota: 'providerQuota',
   provider_rate_limit: 'providerRateLimit', recognition_timeout: 'recognitionTimeout', invalid_result: 'recognitionInvalid',
+  invalid_geometry: 'recognitionGeometry',
 };
 
 export async function recognize(file: File, provider: ProviderId = 'openai'): Promise<{ project: Project; warnings: string[] }> {

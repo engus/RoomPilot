@@ -31,6 +31,13 @@ The initial baseline used mocked providers only. A subsequent owner-authorized O
 - Added optional `OPENROUTER_REASONING=off` to reproduce the successful request through the application; absent or `default` preserves provider defaults. Unsupported endpoints still fail explicitly. Focused configuration/request tests were observed failing before implementation and passing afterward.
 - Verification after the change: 58 unit/integration tests, TypeScript checks, production build, and eight browser acceptance scenarios pass. The existing 3D bundle warning remains.
 
+## Gemini geometry error investigation
+
+- Reproduced the owner's generic invalid-draft report with one authorized request on the existing private plan. Gemini returned HTTP 200, finish reason `STOP`, and valid JSON. Two room polygons failed the existing topology validator; one contained crossing edges. This was a geometry failure, not a truncated or non-JSON response. The raw response remains local and ignored.
+- The adapter now classifies invalid room topology as `invalid_geometry`, without returning provider text or relaxing validation. The interface explains the outline problem in English/Russian and preserves the existing source and edits. Error copy clarifies that work remains in the editor and requires export to save; there is no autosave.
+- Synthetic regression cases cover crossing edges, a vertex touching a nonadjacent edge, and valid concave geometry. Browser coverage checks the specific error and exports the unchanged source with the user's edits after failure. No retries, extra provider requests, or automatic geometry repair are introduced.
+- Observed the new adapter/API regressions fail before implementation and pass afterward. Replaying the private response locally now produces `invalid_geometry`, with no additional cloud call. Verification: 62 unit/integration tests, strict typechecks, production build, and nine browser scenarios pass. The existing 3D bundle-size warning remains.
+
 ## Workspace rename
 
 The requested target folder name is `RoomPilot`. In-session rename attempts were rejected by Windows because VS Code and Codex runtime processes held the original directory open. Closing the VS Code folder did not release the Codex handles. No process was forcibly terminated and the source directory remains intact.
