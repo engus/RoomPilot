@@ -2,6 +2,15 @@
 
 Date: 2026-10-17. Environment: Windows, Node.js 24.19.0, pnpm 11.25.0.
 
+## Optional apartment context
+
+- Added an EN/RU questionnaire before recognition for habitable rooms, approximate area, balcony inclusion, bathroom count/layout and kitchen/balcony/storage counts. Blank numbers remain unknown; zero remains explicit. Physical spaces and wall-free zones stay distinct from habitable-room counts. The owner confirmed the demo's approximately 58 m² excludes the balcony and its bathroom/WC is combined.
+- Version 4 stores nullable bounded apartment context. Versions 1–3 migrate without changing geometry, openings or zones. All-unknown details canonicalize to null. The demo retains printed areas and geometry, with 58.29 m² excluding the balcony and 60.67 m² including it; area context never establishes scale.
+- Full recognition validates the complete multipart image and optional JSON field before invoking a provider. Oversized, duplicated, unexpected and malformed fields are rejected without a provider call. OpenAI/Gemini/OpenRouter receive typed context as hints without changes to output schemas. Openings-only requests preserve and transmit the same context.
+- Invalid/transient form edits block recognition/export and invalidate in-flight results. Independent review found failed import/upload attempts could remount the form while leaving validation blocked; a regression reproduced the value reset, and a separate successful-document replacement counter fixes it. Scoped re-review found no remaining blocker.
+- Focused validation, transport and provider tests were observed failing before implementation and passing afterward. Final checks: 131 unit/integration tests across 12 files, 21 browser scenarios, strict workspace typechecks and production build pass. Browser coverage includes zero/unknown, context transport, export/import, stale responses and failed replacement recovery. The questionnaire was visually inspected with the demo values; local proof and the pre-edit backup remain ignored.
+- No live model request was made for this extension. Request propagation is verified with mocks; improved recognition accuracy remains unmeasured. The existing lazy 3D chunk is 908.26 kB before gzip and retains the Vite size warning.
+
 ## Verified locally
 
 - Unit/integration suite: 37 passing tests across domain geometry, image upload/API behavior, provider response handling, editor imports, and appearance preferences.

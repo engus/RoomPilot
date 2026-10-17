@@ -6,6 +6,7 @@ A 3D home dashboard for Home Assistant, with a visual floor-plan editor and opti
 
 ## Milestone 1
 - Import a PNG/JPEG floor plan, including a photograph of a paper plan.
+- Optionally describe the apartment before recognition: habitable rooms, approximate area and balcony inclusion, bathroom count/layout, kitchens, balconies and storage rooms.
 - Recognize room outlines, names, printed areas, and explicitly labelled ceiling height through OpenAI, Google Gemini, or OpenRouter. Select the destination before sending an image.
 - Review overlays on the original image; edit room names, reported areas, and vertices; draw and delete rooms manually.
 - Calibrate scale using two points and one known distance. Keep printed areas separate from geometrically calculated areas.
@@ -21,7 +22,7 @@ After setting scale and ceiling height, select a room, choose **Add door**, **Ad
 
 A nearby opposite wall face can be linked to the same opening so both faces are cut in 3D. Resizing keeps that connection and fails if the existing second face no longer fits. Per-room wall faces and wall thickness remain a simplified preview; verify matching and position against the image. Door leaves are shown partly open with an illustrative inward swing; hinge side and actual opening direction are not encoded. No device command is sent.
 
-Exports use project version 3 with `openings` and `zones` lists. Version 1 imports get empty openings/zones; version 2 imports preserve openings and get empty zones; unsupported versions and invalid references are rejected. Clearing scale or ceiling preserves the existing openings and disables 3D. Deleting a room removes its attached openings. Full recognition replaces room geometry and produces a new draft (including detected openings when using OpenRouter), so export existing work before recognizing the full plan again.
+Exports use project version 4 with `openings`, `zones` and nullable `apartmentBrief`. Version 1 imports get empty openings/zones; version 2 imports preserve openings and get empty zones; versions 1–3 get unknown apartment context. Unsupported versions and invalid references are rejected. Clearing scale or ceiling preserves the existing openings and disables 3D. Deleting a room removes its attached openings. Full recognition replaces room geometry and produces a new draft (including detected openings when using OpenRouter), so export existing work before recognizing the full plan again.
 
 With **OpenRouter** selected, **Recognize windows and doors** sends the image and fixed normalized room outlines to the configured model. It preserves room IDs, calibration, ceiling confirmation and existing openings, appending only valid non-conflicting suggestions. Repeated detection skips duplicate/conflicting suggestions. The model marks aperture endpoints; RoomPilot snaps them to compatible wall faces and cuts those faces in 3D. Review positions against the source: near-wall snapping does not guarantee correct detection.
 
@@ -33,7 +34,15 @@ Readable opening heights and sill heights are copied in metres. Unreadable value
 
 The main open space contains **Living area**, **Kitchen** and **Corridor** zones. Rooms own physical walls; zones mark floor regions and do not introduce walls. Their divisions are illustrative and editable. Room reported areas and computed zone areas stay separate. Zone areas remain unknown until calibrated.
 
-Select a room and choose **Add zone**, draw its polygon, then **Finish zone**. Choose a zone from the nested room list, 2D plan or 3D floor to rename/delete it; drag its vertices in 2D to adjust its boundary. Sibling zones can share edges but their interiors cannot overlap, and the whole polygon must stay inside its parent, including concave recesses. Invalid zone drags and room edits are rejected while keeping the previous geometry. Deleting a room also removes its zones and openings. Zones round-trip in version 3 exports. Full AI recognition creates a new unzoned draft; openings-only detection preserves zones.
+Select a room and choose **Add zone**, draw its polygon, then **Finish zone**. Choose a zone from the nested room list, 2D plan or 3D floor to rename/delete it; drag its vertices in 2D to adjust its boundary. Sibling zones can share edges but their interiors cannot overlap, and the whole polygon must stay inside its parent, including concave recesses. Invalid zone drags and room edits are rejected while keeping the previous geometry. Deleting a room also removes its zones and openings. Zones round-trip in version 4 exports. Full AI recognition creates a new unzoned draft; openings-only detection preserves zones.
+
+## Apartment context
+
+The optional **About the apartment** form distinguishes habitable rooms (bedrooms and living areas) from the physical **Spaces** list. A three-room apartment can also contain a kitchen, bathroom, corridor, balcony and storage; open living/kitchen/corridor functions can share one physical room with several zones. Bathroom count means sanitary sets: one combined bathroom/WC counts as one, as does one separate bathroom and WC pair. The layout selector explains how those facilities are arranged.
+
+Blank numbers mean unknown; zero is an explicit count. Approximate area and balcony inclusion are context only and never establish scale or reshape geometry. Answers are sent with the image only on explicit recognition, to the selected provider; openings-only detection also receives and preserves them. Editing the form makes no provider call. Invalid answers must be corrected or cleared before recognition/export, and edits during recognition prevent the old result from replacing newer work.
+
+The demo contains three habitable rooms, approximately 58 m² excluding its balcony, one combined bathroom/WC, one kitchen, one balcony and one storage room. Printed physical areas remain unchanged: 58.29 m² without the balcony and 60.67 m² with it. The questionnaire supplies recognition hints; it does not guarantee complete or accurate extraction.
 
 The interface supports English and Russian, defaulting to the browser language (Russian when applicable, English otherwise). Choose Light, Dark, or System appearance. Only these preferences are stored locally; project autosave is not implemented. Project documentation is maintained in English.
 

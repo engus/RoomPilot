@@ -1,5 +1,6 @@
-import { RecognitionSchema, OpeningRecognitionSchema, type OpeningRecognition, type Project, type Recognition, type Source } from '@roompilot/domain';
+import { RecognitionSchema, OpeningRecognitionSchema, type ApartmentBrief, type OpeningRecognition, type Project, type Recognition, type Source } from '@roompilot/domain';
 import { openingArraySchema, openingOnlySchema, openingInstructions } from './opening-prompt';
+import { apartmentContext } from './apartment-context';
 
 export const PROVIDER_IDS = ['openai', 'gemini', 'openrouter'] as const;
 export type ProviderId = typeof PROVIDER_IDS[number];
@@ -12,7 +13,7 @@ export interface RecognitionConfig extends ProviderCredentials {
   requestTimeoutMs?: number;
   frontendOrigin?: string;
 }
-export type RecognitionProvider = (image: Source, signal: AbortSignal) => Promise<unknown>;
+export type RecognitionProvider = (image: Source, signal: AbortSignal, apartmentBrief?: ApartmentBrief | null) => Promise<unknown>;
 
 export class RecognitionError extends Error {
   constructor(public readonly statusCode: number, message: string, public readonly code = 'recognition_failed') { super(message); }
@@ -93,14 +94,14 @@ export async function recognizeOpenings(project: Project, config: RecognitionCon
   const result = await requestDraft(project.source, config, signal, 'openrouter', {
     schema: openingOnlySchema, instructions: `${openingInstructions} The supplied normalized room outlines are fixed reference geometry. Do not redraw rooms. Return opening endpoint coordinates in that same image coordinate system.`,
     prompt: `Find doors and windows in this image using these fixed normalized room outlines: ${JSON.stringify(rooms)}`,
-  });
+  }, project.apartmentBrief);
   const parsed = OpeningRecognitionSchema.safeParse(result);
   if (!parsed.success) throw new RecognitionError(502, 'Invalid opening recognition draft.', 'invalid_result');
   return parsed.data;
 }
 
-export async function recognizeImage(image: Source, config: RecognitionConfig, signal?: AbortSignal, provider: ProviderId = 'openai'): Promise<Recognition> {
-  const result = await requestDraft(image, config, signal, provider);
+export async function recognizeImage(image: Source, config: RecognitionConfig, signal?: AbortSignal, provider: ProviderId = 'openai', apartmentBrief?: ApartmentBrief | null): Promise<Recognition> {
+  const result = await requestDraft(image, config, signal, provider, undefined, apartmentBrief);
   const draft = RecognitionSchema.safeParse(result);
   if (!draft.success) {
     if (draft.error.issues.some(issue => issue.code === 'custom' && issue.path.length === 3 && issue.path[0] === 'rooms' && issue.path[2] === 'polygon')) {
@@ -111,14 +112,14 @@ export async function recognizeImage(image: Source, config: RecognitionConfig, s
   return draft.data;
 }
 
-async function requestDraft(image: Source, config: RecognitionConfig, signal: AbortSignal | undefined, provider: ProviderId, format?: RequestFormat): Promise<unknown> {
+async function requestDraft(image: Source, config: RecognitionConfig, signal: AbortSignal | undefined, provider: ProviderId, format?: RequestFormat, apartmentBrief?: ApartmentBrief | null): Promise<unknown> {
   if (!isProviderId(provider)) throw new RecognitionError(400, 'Unknown recognition provider.', 'invalid_provider');
   const credentials = credentialsFor(config, provider);
   if (!providerConfigured(config, provider)) throw new RecognitionError(503, 'Configure the selected provider key and model on the server.', 'provider_unconfigured');
   const timeout = AbortSignal.timeout(config.requestTimeoutMs ?? 45_000);
   const cancellation = signal ? AbortSignal.any([signal, timeout]) : timeout;
   try {
-    const request = providerRequest(image, credentials, provider, config.openrouter?.reasoning === false, format);
+    const request = providerRequest(image, credentials, provider, config.openrouter?.reasoning === false, format, apartmentBrief);
     const response = await fetch(request.url, { method: 'POST', redirect: 'error', signal: cancellation, headers: request.headers, body: JSON.stringify(request.body) });
     // Both successful and error responses are untrusted and bounded. Raw errors never leave the adapter.
     let result: unknown;
@@ -136,9 +137,10 @@ async function requestDraft(image: Source, config: RecognitionConfig, signal: Ab
   }
 }
 
-function providerRequest(image: Source, credentials: ProviderCredentials, provider: ProviderId, disableReasoning: boolean, format: RequestFormat = routerFormat) {
+function providerRequest(image: Source, credentials: ProviderCredentials, provider: ProviderId, disableReasoning: boolean, format: RequestFormat = routerFormat, apartmentBrief?: ApartmentBrief | null) {
   const authorization = { Authorization: `Bearer ${credentials.apiKey!.trim()}`, 'Content-Type': 'application/json' };
   const model = credentials.model!.trim();
+  const context = apartmentContext(apartmentBrief);
   if (provider === 'gemini') {
     const match = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/.exec(image.dataUrl);
     if (!match) throw new RecognitionError(400, 'Invalid embedded image.');
@@ -147,7 +149,7 @@ function providerRequest(image: Source, credentials: ProviderCredentials, provid
       headers: { 'x-goog-api-key': credentials.apiKey!.trim(), 'Content-Type': 'application/json' },
       body: {
         systemInstruction: { parts: [{ text: instructions }] },
-        contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: match[1], data: match[2] } }] }],
+        contents: [{ role: 'user', parts: [{ text: prompt + context }, { inlineData: { mimeType: match[1], data: match[2] } }] }],
         generationConfig: {
           maxOutputTokens: 16_000,
           // Gemini 3+ supports thinking levels; earlier models reject this option.
@@ -162,7 +164,7 @@ function providerRequest(image: Source, credentials: ProviderCredentials, provid
     body: {
       model, max_tokens: 16_000, stream: false,
       ...(disableReasoning ? { reasoning: { enabled: false } } : {}),
-      messages: [{ role: 'system', content: format.instructions }, { role: 'user', content: [{ type: 'text', text: format.prompt }, { type: 'image_url', image_url: { url: image.dataUrl } }] }],
+      messages: [{ role: 'system', content: format.instructions }, { role: 'user', content: [{ type: 'text', text: format.prompt + context }, { type: 'image_url', image_url: { url: image.dataUrl } }] }],
       response_format: { type: 'json_schema', json_schema: { name: 'floor_plan_draft', strict: true, schema: format.schema } },
       provider: { require_parameters: true },
     },
@@ -171,7 +173,7 @@ function providerRequest(image: Source, credentials: ProviderCredentials, provid
     url: 'https://api.openai.com/v1/responses', headers: authorization,
     body: {
       model, store: false, max_output_tokens: 16_000, instructions,
-      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }, { type: 'input_image', image_url: image.dataUrl, detail: 'high' }] }],
+      input: [{ role: 'user', content: [{ type: 'input_text', text: prompt + context }, { type: 'input_image', image_url: image.dataUrl, detail: 'high' }] }],
       text: { format: { type: 'json_schema', name: 'floor_plan_draft', strict: true, schema: recognitionJsonSchema } },
     },
   };

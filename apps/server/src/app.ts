@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import sharp from 'sharp';
-import { applyDetectedOpenings, createProject, ProjectSchema, RecognitionSchema, type Source } from '@roompilot/domain';
+import { ApartmentBriefOrNullSchema, applyDetectedOpenings, createProject, ProjectSchema, RecognitionSchema, type ApartmentBrief, type Source } from '@roompilot/domain';
 import { credentialsFor, isProviderId, providerConfigured, PROVIDER_IDS, readConfig, recognizeImage, recognizeOpenings, RecognitionError, type ProviderId, type RecognitionConfig, type RecognitionProvider } from './recognition';
 
 const MAX_UPLOAD = 10 * 1024 * 1024;
@@ -11,7 +11,7 @@ export interface BuildAppOptions { provider?: RecognitionProvider; providers?: P
 
 export function buildApp({ provider, providers = {}, config = readConfig() }: BuildAppOptions = {}) {
   const app = Fastify({ logger: false, bodyLimit: MAX_UPLOAD + 16_384, requestTimeout: 60_000 });
-  app.register(multipart, { limits: { fileSize: MAX_UPLOAD, files: 1, fields: 0, parts: 1, headerPairs: 100 } });
+  app.register(multipart, { limits: { fileSize: MAX_UPLOAD, files: 1, fields: 1, fieldSize: 2048, parts: 2, headerPairs: 100 } });
   const overrides = { ...providers, ...(provider ? { openai: provider } : {}) };
   const defaultProvider = config.defaultProvider ?? 'openai';
   const configured = (id: ProviderId) => Boolean(overrides[id] || providerConfigured(config, id));
@@ -22,6 +22,7 @@ export function buildApp({ provider, providers = {}, config = readConfig() }: Bu
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof RecognitionError) return reply.code(error.statusCode).send({ error: error.message, code: error.code });
     const failure = error as { statusCode?: number; code?: string };
+    if (failure.code === 'FST_FIELDS_LIMIT' || failure.code === 'FST_PARTS_LIMIT') return reply.code(400).send({ error: 'Upload one image and one optional apartment brief.', code: 'invalid_brief' });
     if (failure.statusCode === 413 || failure.code === 'FST_REQ_FILE_TOO_LARGE' || failure.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return reply.code(413).send({ error: 'Изображение превышает предел 10 МиБ.' });
     return reply.code(400).send({ error: 'Не удалось прочитать загрузку. Выберите один файл PNG или JPEG.' });
   });
@@ -41,8 +42,17 @@ export function buildApp({ provider, providers = {}, config = readConfig() }: Bu
     try {
       if (!request.isMultipart()) throw new RecognitionError(400, 'Ожидается один файл PNG или JPEG.');
       let image: Source | undefined;
+      let apartmentBrief: ApartmentBrief | null = null;
+      let briefSeen = false;
       // Consume the entire form before any provider call, so extra files/parts cannot spend credit.
       for await (const part of request.parts()) {
+        if (part.type === 'field') {
+          if (part.fieldname !== 'apartmentBrief' || briefSeen || part.valueTruncated || typeof part.value !== 'string') throw new RecognitionError(400, 'Invalid apartment brief.', 'invalid_brief');
+          briefSeen = true;
+          try { apartmentBrief = ApartmentBriefOrNullSchema.parse(JSON.parse(part.value)); }
+          catch { throw new RecognitionError(400, 'Invalid apartment brief.', 'invalid_brief'); }
+          continue;
+        }
         if (part.type !== 'file' || part.fieldname !== 'file' || image) throw new RecognitionError(400, 'Ожидается один файл в поле file.');
         const bytes = await part.toBuffer();
         if (part.file.truncated || bytes.byteLength > MAX_UPLOAD) throw new RecognitionError(413, 'Изображение превышает предел 10 МиБ.');
@@ -51,16 +61,16 @@ export function buildApp({ provider, providers = {}, config = readConfig() }: Bu
       if (!image) throw new RecognitionError(400, 'Выберите файл PNG или JPEG.');
       const selected = request.query.provider ?? defaultProvider;
       if (!isProviderId(selected)) throw new RecognitionError(400, 'Unknown recognition provider.', 'invalid_provider');
-      const invoke: RecognitionProvider = overrides[selected] ?? ((source, signal) => recognizeImage(source, config, signal, selected));
+      const invoke: RecognitionProvider = overrides[selected] ?? ((source, signal, brief) => recognizeImage(source, config, signal, selected, brief));
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         const timeout = new Promise<never>((_resolve, reject) => {
           timer = setTimeout(() => { controller.abort(); reject(new RecognitionError(504, 'Истекло время ожидания распознавания. Повторите запрос.', 'recognition_timeout')); }, config.requestTimeoutMs ?? 45_000);
         });
-        const result = await Promise.race([invoke(image, controller.signal), timeout]);
+        const result = await Promise.race([invoke(image, controller.signal, apartmentBrief), timeout]);
         const recognition = RecognitionSchema.parse(result);
-        const base = createProject(image, recognition);
+        const base = { ...createProject(image, recognition), apartmentBrief };
         const converted = applyDetectedOpenings(base, recognition.openings ?? []);
         return { project: converted.project, warnings: [...recognition.warnings, ...(recognition.openings ? converted.warnings : [])] };
       } catch (error) {

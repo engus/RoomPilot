@@ -4,6 +4,7 @@ import { calibrateProject, createProject, findRoomOverlaps, getComputedArea, get
 import PlanCanvas, { ROOM_COLORS, type EditorMode } from './components/PlanCanvas';
 import OpeningEditor from './components/OpeningEditor';
 import ZoneEditor from './components/ZoneEditor';
+import ApartmentBriefEditor from './components/ApartmentBriefEditor';
 import { ZONE_COLORS } from './zone-colors';
 import { createDemo } from './demo';
 import { readImage, recognize, recognizeOpenings, verifyImportedSource, PROVIDER_IDS, PROVIDER_NAMES, type ProviderId, type ProviderStatus, type ProviderHealth } from './api';
@@ -47,9 +48,11 @@ export default function App() {
   const [placementKind, setPlacementKind] = useState<OpeningKind | null>(null);
   const [selectedOpeningId, setSelectedOpeningId] = useState<string | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+  const [briefInvalid, setBriefInvalid] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null), jsonInput = useRef<HTMLInputElement>(null);
   const canvasColumn = useRef<HTMLDivElement>(null);
   const generation = useRef(0);
+  const documentGeneration = useRef(0);
   const busyOperation = useRef(0);
   useEffect(() => {
     let active = true;
@@ -67,9 +70,11 @@ export default function App() {
   const missing = project ? [!project.rooms.length && t('missingRooms'), !project.calibration && t('missingScale'), (!project.ceilingHeightM || !project.ceilingHeightConfirmed) && t('missingHeight')].filter(Boolean) : [];
   const replace = (next: Project, demo = false) => {
     generation.current += 1;
+    documentGeneration.current += 1;
     setProject(next); setSelectedId(next.rooms[0]?.id ?? null); setMode('select'); setView('2d'); setDraft([]); setCalibrationPoints([]);
     setKnownLength(''); setHeightInput(next.ceilingHeightM?.toString() ?? ''); setWarnings([]); setIsDemo(demo);
     setPlacementKind(null); setSelectedOpeningId(null); setSelectedZoneId(null);
+    setBriefInvalid(false);
   };
   const changeRoom = (room: Room) => {
     if (!project) return;
@@ -110,7 +115,7 @@ export default function App() {
     finally { if (busyOperation.current === operation) setBusy(false); }
   }
   async function runRecognition(openingsOnly = false) {
-    if (!project || busy) return;
+    if (!project || busy || briefInvalid) return;
     const token = generation.current; const startedAtRevision = revision.current;
     const operation = ++busyOperation.current; setBusy(true); setMessage(null);
     try {
@@ -118,7 +123,7 @@ export default function App() {
         if (openingsOnly) return recognizeOpenings(project);
         const blob = await (await fetch(project.source.dataUrl)).blob();
         const mime = blob.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
-        return recognize(new File([blob], mime === 'image/jpeg' ? 'plan.jpeg' : 'plan.png', { type: mime }), provider);
+        return recognize(new File([blob], mime === 'image/jpeg' ? 'plan.jpeg' : 'plan.png', { type: mime }), provider, project.apartmentBrief);
       })();
       if (generation.current !== token) return;
       if (revision.current !== startedAtRevision) { notify('recognitionStale'); return; }
@@ -143,6 +148,7 @@ export default function App() {
   }
   function exportProject() {
     if (!project) return;
+    if (briefInvalid) { notify('correctBeforeExport', true); return; }
     const parsed = ProjectSchema.safeParse(project);
     if (!parsed.success) { notify('correctBeforeExport', true); return; }
     const blob = new Blob([JSON.stringify(parsed.data, null, 2)], { type: 'application/json' });
@@ -188,7 +194,7 @@ export default function App() {
     <header className="app-header">
       <a className="brand" href="#" onClick={event => event.preventDefault()} aria-label="RoomPilot"><span className="brand-mark"><Layers2 size={23} strokeWidth={1.6} /></span><span>room<span className="brand-light">pilot</span><small>{t('brandTagline')}</small></span></a>
       <span className="workspace-label">{t('studio')} <span className="version-pill">MVP 01</span></span>
-      <div className="interface-preferences"><label className="visually-hidden" htmlFor="language-select">{t('language')}</label><select id="language-select" data-testid="language-select" value={language} onChange={event => setLanguage(event.target.value === 'ru' ? 'ru' : 'en')}><option value="en">EN</option><option value="ru">RU</option></select><label className="visually-hidden" htmlFor="theme-select">{t('theme')}</label><select id="theme-select" data-testid="theme-select" value={themePreference} onChange={event => setThemePreference(event.target.value === 'dark' ? 'dark' : event.target.value === 'light' ? 'light' : 'system')}><option value="light">{t('light')}</option><option value="dark">{t('dark')}</option><option value="system">{t('system')}</option></select></div><div className="header-actions"><button className="button ghost" disabled={busy} onClick={() => jsonInput.current?.click()}><ArrowUpFromLine size={16} />{t('importProject')}</button><button className="button outline" disabled={!project || busy} onClick={exportProject}><ArrowDownToLine size={16} />{t('exportProject')}</button></div>
+      <div className="interface-preferences"><label className="visually-hidden" htmlFor="language-select">{t('language')}</label><select id="language-select" data-testid="language-select" value={language} onChange={event => setLanguage(event.target.value === 'ru' ? 'ru' : 'en')}><option value="en">EN</option><option value="ru">RU</option></select><label className="visually-hidden" htmlFor="theme-select">{t('theme')}</label><select id="theme-select" data-testid="theme-select" value={themePreference} onChange={event => setThemePreference(event.target.value === 'dark' ? 'dark' : event.target.value === 'light' ? 'light' : 'system')}><option value="light">{t('light')}</option><option value="dark">{t('dark')}</option><option value="system">{t('system')}</option></select></div><div className="header-actions"><button className="button ghost" disabled={busy} onClick={() => jsonInput.current?.click()}><ArrowUpFromLine size={16} />{t('importProject')}</button><button className="button outline" disabled={!project || busy || briefInvalid} onClick={exportProject}><ArrowDownToLine size={16} />{t('exportProject')}</button></div>
     </header>
     <main>
       <section className="page-heading"><div><div className="eyebrow"><span className="tiny-line" />{t('eyebrow')}</div><h1>{project ? project.name : t('startHome')}<span className="heading-dot">.</span></h1><p>{project ? t('reviewIntroduction') : t('introduction')}</p></div>
@@ -197,6 +203,7 @@ export default function App() {
       {message && <div className={`notice ${message.error ? 'notice-error' : ''}`} role={message.error ? 'alert' : 'status'}><span>{t(message.key)}</span><button aria-label={t('closeMessage')} onClick={() => setMessage(null)}><X size={16} /></button></div>}
       {warnings.length > 0 && <div className="notice notice-warning"><span>{warnings.join(' · ')}</span></div>}
       {overlaps.length > 0 && <div className="notice notice-warning" role="status" data-testid="room-overlap-warning"><span>{t('roomOverlapWarning', { count: overlaps.length })} {overlaps.slice(0, 5).map(pair => pair.map(id => { const index = project!.rooms.findIndex(room => room.id === id); return `#${index + 1} «${project!.rooms[index].name}»`; }).join(' / ')).join(' · ')}{overlaps.length > 5 ? ' …' : ''}</span></div>}
+      {project && <ApartmentBriefEditor key={`${project.id}-${documentGeneration.current}`} value={project.apartmentBrief ?? null} onChange={(brief, valid) => { setBriefInvalid(!valid); if (valid) setProject({ ...project, apartmentBrief: brief }); else revision.current += 1; }} />}
       <section className="editor-workspace" aria-label={t('editor')}>
         <aside className="room-sidebar"><div className="panel-heading"><h2>{t('rooms')}</h2><span className="count-badge">{project?.rooms.length ?? 0}</span></div>
           <p className="panel-description">{t('roomsDescription')}</p>
@@ -246,8 +253,8 @@ export default function App() {
             <span className={`provider-status ${recognitionConfigured ? 'available' : ''}`}><span className="green-dot" />{providers === null ? t('checkingProvider') : recognitionConfigured ? t('providerConfigOnly') : t('providerUnavailable')}</span>
             {providers !== null && !recognitionConfigured && <p className="provider-note">{t('providerSetupHint')}</p>}
           </div>
-          <div className="recognition-actions"><button className="button outline" disabled={!project || busy || !recognitionConfigured} onClick={() => void runRecognition()}>{busy ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />}{t('recognizePlan')}</button>
-          {provider === 'openrouter' && <button className="button outline" disabled={!project?.rooms.length || busy || !recognitionConfigured} onClick={() => void runRecognition(true)}><ScanLine size={16} />{t('recognizeOpenings')}</button>}</div>
+          <div className="recognition-actions"><button className="button outline" disabled={!project || busy || briefInvalid || !recognitionConfigured} onClick={() => void runRecognition()}>{busy ? <LoaderCircle size={16} className="spin" /> : <Sparkles size={16} />}{t('recognizePlan')}</button>
+          {provider === 'openrouter' && <button className="button outline" disabled={!project?.rooms.length || busy || briefInvalid || !recognitionConfigured} onClick={() => void runRecognition(true)}><ScanLine size={16} />{t('recognizeOpenings')}</button>}</div>
         </div>
         <div className="readiness-card"><Box size={21} strokeWidth={1.4} /><div><h3>{ready ? t('ready3D') : t('steps3D')}</h3><p>{project ? ready ? t('open3DHint') : missing.join(' · ') : t('steps3DHint')}</p></div></div>
       </section>

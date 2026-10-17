@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { validatePolygon } from './geometry';
 import { isPolygonWithinRoom, zonePolygonsOverlap } from './zones';
+import { ApartmentBriefOrNullSchema } from './apartment-brief';
 
 export const PointSchema = z.object({ x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative() }).strict();
 const PolygonSchema = z.array(PointSchema).min(3).max(100).refine(validatePolygon, 'Некорректный контур комнаты');
@@ -48,9 +49,10 @@ const projectFields = {
 };
 const LegacyProjectSchema = z.object({ schemaVersion: z.literal(1), ...projectFields }).strict();
 const Version2ProjectSchema = z.object({ schemaVersion: z.literal(2), ...projectFields, openings: z.array(OpeningSchema).max(200) }).strict();
-const CurrentProjectSchema = z.object({ schemaVersion: z.literal(3), ...projectFields, openings: z.array(OpeningSchema).max(200), zones: z.array(ZoneSchema).max(200) }).strict();
-export const ProjectSchema = z.union([CurrentProjectSchema, Version2ProjectSchema, LegacyProjectSchema])
-  .transform(value => value.schemaVersion === 3 ? value : { ...value, schemaVersion: 3 as const, openings: 'openings' in value ? value.openings : [], zones: [] })
+const Version3ProjectSchema = z.object({ schemaVersion: z.literal(3), ...projectFields, openings: z.array(OpeningSchema).max(200), zones: z.array(ZoneSchema).max(200) }).strict();
+const CurrentProjectSchema = z.object({ schemaVersion: z.literal(4), ...projectFields, openings: z.array(OpeningSchema).max(200), zones: z.array(ZoneSchema).max(200), apartmentBrief: ApartmentBriefOrNullSchema }).strict();
+export const ProjectSchema = z.union([CurrentProjectSchema, Version3ProjectSchema, Version2ProjectSchema, LegacyProjectSchema])
+  .transform(value => value.schemaVersion === 4 ? value : { ...value, schemaVersion: 4 as const, openings: 'openings' in value ? value.openings : [], zones: 'zones' in value ? value.zones : [], apartmentBrief: null })
   .superRefine((value, ctx) => {
   const points = [...value.rooms.flatMap(r => r.polygon), ...value.zones.flatMap(zone => zone.polygon), ...(value.calibration?.points ?? [])];
   if (points.some(p => p.x > value.source.width || p.y > value.source.height)) ctx.addIssue({ code: 'custom', message: 'Точка за пределами изображения' });

@@ -1,10 +1,21 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { readConfig, recognizeImage, recognizeOpenings } from './recognition';
-import { createProject } from '@roompilot/domain';
+import { createProject, createApartmentBrief } from '@roompilot/domain';
 
 afterEach(() => vi.unstubAllGlobals());
 const image = { dataUrl: 'data:image/png;base64,YQ==', width: 10, height: 10 };
 const recognition = { rooms: [], ceilingHeightM: null, warnings: ['Не найдены комнаты'] };
+it.each(['openai', 'gemini', 'openrouter'] as const)('passes apartment facts as consistency hints to %s without changing output fields', async provider => {
+  const brief = { ...createApartmentBrief(), livingRooms: 3, approximateAreaM2: 58, balconyArea: 'excluded' as const, bathrooms: 1, bathroomLayout: 'combined' as const };
+  vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+    const sent = JSON.stringify(JSON.parse(init.body as string));
+    expect(sent).toContain('APARTMENT_BRIEF_DATA'); expect(sent).toContain('excluded');
+    expect(sent).toContain('never a calibration');
+    const text = JSON.stringify(recognition);
+    return Response.json(provider === 'gemini' ? { candidates: [{ finishReason: 'STOP', content: { parts: [{ text }] } }] } : provider === 'openrouter' ? { choices: [{ finish_reason: 'stop', message: { content: text } }] } : { status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text }] }] });
+  });
+  expect(await recognizeImage(image, { apiKey: 'key', model: 'model', gemini: { apiKey: 'key', model: 'model' }, openrouter: { apiKey: 'key', model: 'model' } }, undefined, provider, brief)).toEqual(recognition);
+});
 it('requests doors and windows in OpenRouter full recognition while preserving partial candidates', async () => {
   vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
     const sent = JSON.parse(init.body as string);
@@ -16,12 +27,14 @@ it('requests doors and windows in OpenRouter full recognition while preserving p
 });
 it('sends only normalized existing outlines and image for openings-only recognition', async () => {
   const project = createProject(image, { ...recognition, rooms: [{ name: 'PRIVATE NAME', reportedAreaM2: null, polygon: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] }] });
+  project.apartmentBrief = { ...createApartmentBrief(), livingRooms: 3 };
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
     expect(url).toContain('openrouter.ai');
     const sent = JSON.parse(init.body as string);
     expect(sent.response_format.json_schema.schema.required).toEqual(['openings', 'warnings']);
     const text = sent.messages[1].content[0].text;
     expect(text).toContain('"roomIndex":0'); expect(text).toContain('"x":1');
+    expect(text).toContain('APARTMENT_BRIEF_DATA'); expect(text).toContain('"livingRooms":3');
     expect(JSON.stringify(sent)).not.toMatch(/PRIVATE NAME|ceilingHeightConfirmed|schemaVersion/);
     return Response.json({ choices: [{ finish_reason: 'stop', message: { content: '{"openings":[],"warnings":[]}' } }] });
   });

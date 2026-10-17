@@ -1,4 +1,4 @@
-import { ProjectSchema, type Project, type Source } from '@roompilot/domain';
+import { ProjectSchema, type ApartmentBrief, type Project, type Source } from '@roompilot/domain';
 import type { TranslationKey } from './translations';
 
 export class ApiError extends Error {
@@ -14,11 +14,13 @@ const providerErrors: Record<string, TranslationKey> = {
   provider_unconfigured: 'recognitionUnavailable', provider_auth: 'providerAuth', provider_quota: 'providerQuota',
   provider_rate_limit: 'providerRateLimit', recognition_timeout: 'recognitionTimeout', invalid_result: 'recognitionInvalid',
   invalid_geometry: 'recognitionGeometry',
+  invalid_brief: 'briefInvalid',
 };
 
-export async function recognize(file: File, provider: ProviderId = 'openai'): Promise<{ project: Project; warnings: string[] }> {
+export async function recognize(file: File, provider: ProviderId = 'openai', apartmentBrief: ApartmentBrief | null = null): Promise<{ project: Project; warnings: string[] }> {
   const form = new FormData();
   form.append('file', file);
+  if (apartmentBrief !== null) form.append('apartmentBrief', JSON.stringify(apartmentBrief));
   return requestRecognition(`/api/recognize?provider=${encodeURIComponent(provider)}`, { method: 'POST', body: form });
 }
 

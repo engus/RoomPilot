@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import sharp from 'sharp';
 import { buildApp } from './app';
 import type { RecognitionProvider } from './recognition';
+import { createApartmentBrief } from '@roompilot/domain';
 
 const origin = 'http://127.0.0.1:5173';
 const draft = { rooms: [{ name: null, reportedAreaM2: null, polygon: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }] }], ceilingHeightM: null, warnings: ['Проверьте контуры'] };
@@ -12,6 +13,28 @@ function upload(bytes: Buffer, mime = 'image/png', extraHeaders: Record<string, 
   return { method: 'POST' as const, url: '/api/recognize', headers: { origin, 'content-type': 'multipart/form-data; boundary=plan-boundary', ...extraHeaders }, payload: Buffer.concat([Buffer.from(`--plan-boundary\r\nContent-Disposition: form-data; name="file"; filename="plan.png"\r\nContent-Type: ${mime}\r\n\r\n`), bytes, Buffer.from('\r\n--plan-boundary--\r\n')]) };
 }
 const png = () => sharp({ create: { width: 20, height: 10, channels: 3, background: 'white' } }).png().toBuffer();
+
+function uploadWithFields(bytes: Buffer, fields: [string, string][], first = false) {
+  const request = upload(bytes);
+  const parts = Buffer.from(fields.map(([name, value]) => `--plan-boundary\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`).join(''));
+  const ending = Buffer.from('--plan-boundary--\r\n');
+  return { ...request, payload: first ? Buffer.concat([parts, request.payload]) : Buffer.concat([request.payload.subarray(0, -ending.length), parts, ending]) };
+}
+it.each([false, true])('validates and retains apartment context before invoking the provider (field first=%s)', async first => {
+  const brief = { ...createApartmentBrief(), livingRooms: 3, approximateAreaM2: 58, balconyArea: 'excluded' as const, bathrooms: 1, bathroomLayout: 'combined' as const };
+  const server = app({ provider: async (_image, _signal, context) => { expect(context).toEqual(brief); return draft; } });
+  const response = await server.inject(uploadWithFields(await png(), [['apartmentBrief', JSON.stringify(brief)]], first));
+  expect(response.statusCode).toBe(200); expect(response.json().project.apartmentBrief).toEqual(brief);
+  expect(response.json().project.calibration).toBeNull();
+});
+it('rejects invalid, truncated, duplicate and unexpected context parts before spending provider credit', async () => {
+  const provider = vi.fn(async () => draft); const server = app({ provider });
+  for (const fields of [
+    [['apartmentBrief', '{bad}']], [['apartmentBrief', JSON.stringify({ ...createApartmentBrief(), livingRooms: 1.2 })]],
+    [['apartmentBrief', ' '.repeat(3000)]], [['apartmentBrief', 'null'], ['apartmentBrief', 'null']], [['unexpected', 'null']],
+  ] as [string, string][][]) expect((await server.inject(uploadWithFields(await png(), fields))).statusCode).toBe(400);
+  expect(provider).not.toHaveBeenCalled();
+});
 
 async function openingsFixture() {
   const server = app({ provider: async () => ({ ...draft, ceilingHeightM: 2.5 }) });
@@ -24,6 +47,7 @@ const routerConfig = { openrouter: { apiKey: 'key', model: 'vision' } };
 
 it('appends recognized openings without replacing metadata or manual openings, including repeated detection', async () => {
   const project = await openingsFixture();
+  project.apartmentBrief = { ...createApartmentBrief(), livingRooms: 3, bathrooms: 1, bathroomLayout: 'combined' };
   project.zones = [{ id: 'kitchen-zone', roomId: project.rooms[0].id, name: 'Kitchen', polygon: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }] }];
   project.openings = [{ id: 'manual', kind: 'door', heightM: 2.2, sillHeightM: 0, spans: [{ roomId: project.rooms[0].id, edgeIndex: 1, start: .1, end: .7 }] }];
   vi.stubGlobal('fetch', async () => routerResponse([candidate, { invalid: true }]));

@@ -16,6 +16,8 @@ it('builds a localized complete apartment with wall-free zones, original calibra
   const main = ru.rooms.find(room => room.id === 'main')!;
   expect(ru.zones.reduce((sum, zone) => sum + getZoneArea(zone, ru)!, 0)).toBeCloseTo(getComputedArea(main, ru)!, 5);
   expect(ru.calibration!.lengthM).toBe(5.88); expect(ru.ceilingHeightM).toBe(2.5);
+  expect(ru.apartmentBrief).toEqual({ livingRooms: 3, approximateAreaM2: 58, balconyArea: 'excluded', bathrooms: 1, bathroomLayout: 'combined', kitchens: 1, balconies: 1, storageRooms: 1 });
+  expect(ru.rooms.find(room => room.id === 'right-small')!.name).toBe('Санузел');
   ru.rooms[0].name = 'Edited'; ru.openings[0].spans[0].start = 0;
   expect(buildDemoProject(source, 'ru').rooms[0].name).toBe('Спальня взрослых');
   expect(buildDemoProject(source, 'ru').openings[0].spans[0].start).not.toBe(0);
