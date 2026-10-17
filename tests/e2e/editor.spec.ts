@@ -246,3 +246,99 @@ test('warns about a swallowed room locally and clears the warning after the over
   await expect(page.getByLabel('Room name', { exact: true })).toHaveValue('Kitchen');
   expect(recognitionRequests).toBe(0);
 });
+
+test('places real partition doors and windows, edits dimensions and round-trips version 2', async ({ page }) => {
+  await page.goto('/');
+  const fixture = await importFixture(page);
+  const secondRoom = { ...fixture.rooms[0], id: 'room-2', name: 'Bedroom', polygon: [{ x: 310, y: 10 }, { x: 550, y: 10 }, { x: 550, y: 200 }, { x: 310, y: 200 }] };
+  const project = { ...fixture, rooms: [...fixture.rooms, secondRoom], calibration: { points: [{ x: 10, y: 10 }, { x: 300, y: 10 }], lengthM: 2.9, metresPerPixel: .01 }, ceilingHeightM: 2.5, ceilingHeightConfirmed: true };
+  await page.locator('input[type=file][accept*="json"]').setInputFiles({ name: 'partition.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
+  await page.getByRole('button', { name: 'Добавить дверь', exact: true }).click();
+  async function clickWall(x: number, y: number) {
+    await page.getByTestId('plan-canvas').scrollIntoViewIfNeeded();
+    const screen = await page.getByTestId('plan-canvas').evaluate((element, point) => {
+      const svg = element as SVGSVGElement, p = svg.createSVGPoint(); p.x = point.x; p.y = point.y;
+      const result = p.matrixTransform(svg.getScreenCTM()!); return { x: result.x, y: result.y };
+    }, { x, y });
+    await page.mouse.click(screen.x, screen.y);
+  }
+  await clickWall(300, 105);
+  await expect(page.getByTestId('opening-symbol')).toHaveCount(1);
+  await page.getByLabel('Ширина проёма, м', { exact: true }).fill('1.1');
+  await page.getByLabel('Высота проёма, м', { exact: true }).fill('2.1');
+  await page.getByRole('button', { name: 'Применить размеры', exact: true }).click();
+  await page.getByRole('button', { name: '3D', exact: true }).click();
+  await expect(page.getByTestId('scene-3d').locator('canvas')).toBeVisible();
+  await page.screenshot({ path: 'test-results/roompilot-openings-3d.png', fullPage: true });
+  await page.getByRole('button', { name: '2D', exact: true }).click();
+  await page.getByRole('button', { name: 'Добавить окно', exact: true }).click();
+  await clickWall(155, 10);
+  await expect(page.getByTestId('opening-symbol')).toHaveCount(2);
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Экспорт проекта', exact: true }).click();
+  const stream = await (await downloadPromise).createReadStream(); const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  const bytes = Buffer.concat(chunks), saved = JSON.parse(bytes.toString());
+  expect(saved.schemaVersion).toBe(2); expect(saved.source).toEqual(project.source);
+  expect(saved.openings).toHaveLength(2);
+  expect(saved.openings[0]).toMatchObject({ kind: 'door', heightM: 2.1, sillHeightM: 0, spans: [{ roomId: 'room-1', edgeIndex: 1 }, { roomId: 'room-2', edgeIndex: 3 }] });
+  expect(saved.openings[1]).toMatchObject({ kind: 'window', heightM: 1.5, sillHeightM: .85 });
+  const span = saved.openings[0].spans[0]; expect((span.end - span.start) * 190 * .01).toBeCloseTo(1.1);
+  await page.reload();
+  await page.locator('input[type=file][accept*="json"]').setInputFiles({ name: 'saved.json', mimeType: 'application/json', buffer: bytes });
+  await expect(page.getByTestId('opening-symbol')).toHaveCount(2);
+  await page.getByLabel('Проём', { exact: true }).selectOption(saved.openings[1].id);
+  await page.getByRole('button', { name: 'Удалить проём', exact: true }).click();
+  await expect(page.getByTestId('opening-symbol')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Сбросить масштаб', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Добавить дверь', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '3D', exact: true })).toBeDisabled();
+});
+
+test('keeps openings recoverable when the ceiling is cleared, rejects too-low ceilings and cleans up room deletion', async ({ page }) => {
+  await page.goto('/'); const fixture = await importFixture(page);
+  const window = { id: 'window-1', kind: 'window', heightM: 1.5, sillHeightM: .85, spans: [{ roomId: 'room-1', edgeIndex: 0, start: .2, end: .6 }] };
+  const project = { ...fixture, schemaVersion: 2, openings: [window], calibration: { points: [{ x: 10, y: 10 }, { x: 300, y: 10 }], lengthM: 2.9, metresPerPixel: .01 }, ceilingHeightM: 2.5, ceilingHeightConfirmed: true };
+  await page.locator('input[type=file][accept*="json"]').setInputFiles({ name: 'window.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
+  await page.getByLabel('Высота потолка, м', { exact: true }).fill('2.2');
+  await page.getByRole('button', { name: 'Подтвердить высоту', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Потолок ниже');
+  await expect(page.getByRole('button', { name: '3D', exact: true })).toBeDisabled();
+  await expect(page.getByTestId('opening-symbol')).toHaveCount(1);
+  await page.getByLabel('Проём', { exact: true }).selectOption('window-1');
+  await page.getByLabel('Высота подоконника, м', { exact: true }).fill('0.5');
+  await page.getByRole('button', { name: 'Применить размеры', exact: true }).click();
+  await page.getByRole('button', { name: 'Подтвердить высоту', exact: true }).click();
+  await expect(page.getByRole('button', { name: '3D', exact: true })).toBeEnabled();
+  await page.getByLabel('Высота потолка, м', { exact: true }).fill('');
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Экспорт проекта', exact: true }).click();
+  const stream = await (await downloadPromise).createReadStream(), chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  const saved = JSON.parse(Buffer.concat(chunks).toString());
+  expect(saved).toMatchObject({ ceilingHeightM: null, ceilingHeightConfirmed: false, openings: [{ id: 'window-1', sillHeightM: .5 }] });
+  await page.getByRole('button', { name: 'Удалить комнату', exact: true }).click();
+  await expect(page.getByTestId('opening-symbol')).toHaveCount(0);
+  await expect(page.getByLabel('Проём', { exact: true })).toBeDisabled();
+  await page.getByTestId('language-select').selectOption('en');
+  await expect(page.getByRole('heading', { name: 'Doors and windows 0', exact: true })).toBeVisible();
+});
+
+test('updates opening width after a wall vertex moves without silently resizing it on a height edit', async ({ page }) => {
+  await page.goto('/'); const fixture = await importFixture(page);
+  const window = { id: 'window-1', kind: 'window', heightM: 1.5, sillHeightM: .85, spans: [{ roomId: 'room-1', edgeIndex: 0, start: .2, end: .6 }] };
+  const project = { ...fixture, schemaVersion: 2, openings: [window], calibration: { points: [{ x: 10, y: 10 }, { x: 300, y: 10 }], lengthM: 2.9, metresPerPixel: .01 }, ceilingHeightM: 2.5, ceilingHeightConfirmed: true };
+  await page.locator('input[type=file][accept*="json"]').setInputFiles({ name: 'window.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
+  await page.getByLabel('Проём', { exact: true }).selectOption('window-1');
+  await expect(page.getByLabel('Ширина проёма, м', { exact: true })).toHaveValue('1.16');
+  const svg = page.getByTestId('plan-canvas'); await svg.scrollIntoViewIfNeeded();
+  const screen = await svg.evaluate(element => {
+    const svg = element as SVGSVGElement;
+    return [300,400].map(x => { const p = svg.createSVGPoint(); p.x=x; p.y=10; const q=p.matrixTransform(svg.getScreenCTM()!); return { x:q.x,y:q.y }; });
+  });
+  await page.mouse.move(screen[0].x,screen[0].y); await page.mouse.down(); await page.mouse.move(screen[1].x,screen[1].y,{steps:5}); await page.mouse.up();
+  await expect(page.getByLabel('Ширина проёма, м', { exact: true })).toHaveValue('1.56');
+  await page.getByLabel('Высота проёма, м', { exact: true }).fill('1.4');
+  await page.getByRole('button', { name: 'Применить размеры', exact: true }).click();
+  await expect(page.getByLabel('Ширина проёма, м', { exact: true })).toHaveValue('1.56');
+});

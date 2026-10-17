@@ -32,4 +32,4 @@
 - This standing authorization covers Git commits and pushes only. Publishing releases, deploying applications, and merging pull requests still require the relevant user authorization.
 
 ## Current milestone
-See `docs/superpowers/specs/2026-10-17-plan-import-design.md`. Milestone 1 is floor-plan import, review, calibration, ceiling height, 2D/3D preview, and JSON export/import. HA control, full CAD editing, and reconstruction from room photographs follow later.
+See `docs/superpowers/specs/2026-10-17-plan-import-design.md` and the owner-authorized extension `docs/superpowers/specs/2026-10-17-openings-design.md`. The current milestone includes floor-plan import, review, calibration, ceiling height, 2D/3D preview, version 1 migration/version 2 export, and manually editable doors/windows/passages. Keep opening spans attached to valid room edges and remove their references when deleting a room. Cloud recognition is still room-only. HA control, full CAD editing, and reconstruction from room photographs follow later.

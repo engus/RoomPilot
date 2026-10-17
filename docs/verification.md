@@ -56,6 +56,16 @@ The initial baseline used mocked providers only. A subsequent owner-authorized O
 - Visual comparison and diagnostic interior samples found that the omitted corridor was still uncovered and the small room still lay within the raw main outline. A printed area was also misread. The more detailed main polygon introduced self-intersection rather than a usable wall trace; the new prompt did not resolve the two requested defects in this run.
 - Kept the prior valid project intact. The raw response and clearly labelled diagnostic overlay remain local and ignored; no private image, coordinates, credentials, or exported project are committed. No retry, fallback, or automatic repair was performed.
 
+## Doors, windows, and assisted visual comparison
+
+- The owner requested a separate Codex interpretation and 3D view with openings, and confirmed ceiling/unit assumptions for their source plan. The active document was exported before editing. Private tracing scripts, plans, comparisons and screenshots remain ignored; no additional cloud inference was used.
+- Added explicit version 1 to version 2 migration and validated door/window/passage objects with one or two room-edge spans. Width/height/sill controls, local placement and deletion, cleanup on room removal, metadata-reset behavior and round-trip export/import are covered. Cloud provider recognition intentionally remains room-only; the interface states this limitation.
+- 2D shows editable opening symbols. 3D splits both referenced wall faces around each aperture and renders a single frame/glass or partially open door leaf. The camera fits actual room bounds against both FOV axes and responds to aspect changes without resetting on selection. Per-room wall faces and stylized wall thickness remain preview limitations.
+- Domain review found a resize operation could reconnect a mirrored opening to an unrelated nearby wall; a failing/passing regression now pins the original second face. Final review found opening width could become stale after dragging a wall vertex; a failing/passing browser regression now keeps the displayed and applied physical width current. Both fixes passed scoped re-review.
+- The separate assisted visual draft contains six spaces and ten traced apertures, passes polygon/project validation with no room overlaps, and covers independent corridor, main-room, small-room and balcony interior samples. The stored latest OpenRouter response still fails topology validation and omits the corridor. The assisted draft uses visual feedback and explicit review; this is not an unattended Codex provider or a one-shot model benchmark. Printed versus computed areas remain separate.
+- Private 2D/3D screenshots were inspected, including full initial framing of the long room and visible apertures. The source export and comparison remain available locally. Automatic opening recognition, a full shared-wall graph, CAD accuracy and HA control remain unimplemented.
+- Final verification: 97 unit/integration tests, strict workspace typechecks, production build and 13 browser scenarios pass. New browser cases cover mirrored placement/dimension edits, 3D/export/import, unknown or too-low ceiling recovery, room deletion, and opening width after wall-vertex movement. The lazy 3D bundle is approximately 907 kB before gzip and retains the known Vite size warning. Reviews and scoped re-reviews are complete.
+
 ## Workspace rename
 
 The requested target folder name is `RoomPilot`. In-session rename attempts were rejected by Windows because VS Code and Codex runtime processes held the original directory open. Closing the VS Code folder did not release the Codex handles. No process was forcibly terminated and the source directory remains intact.
@@ -75,6 +85,6 @@ Drei was removed from project dependencies. Camera controls and grid rendering n
 ## Deferred limitations
 
 - Browser image dimensions are checked after image decoding. Very large compressed inputs can temporarily consume substantial browser memory before rejection; server decoding has an explicit input-pixel limit.
-- The lazy 3D bundle is approximately 904 kB before gzip; Vite emits a chunk-size warning. Further splitting/performance work is deferred.
-- There is no project autosave, shared-wall topology, openings, furniture, or HA device control in this milestone.
+- The lazy 3D bundle is approximately 907 kB before gzip after adding openings; Vite emits a chunk-size warning. Further splitting/performance work is deferred.
+- There is no project autosave, full shared-wall topology, automatic opening recognition, furniture, or HA device control in this milestone. Manual openings and their 2D/3D rendering were subsequently added as described above.
 - The initial implementation was prepared before Git identity and publication were configured. The owner subsequently authorized routine commits/pushes and selected `engus` with the GitHub noreply address as the repository-local author. Follow `AGENTS.md` for the current publication workflow.

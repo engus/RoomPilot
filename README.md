@@ -10,9 +10,18 @@ A 3D home dashboard for Home Assistant, with a visual floor-plan editor and opti
 - Review overlays on the original image; edit room names, reported areas, and vertices; draw and delete rooms manually.
 - Calibrate scale using two points and one known distance. Keep printed areas separate from geometrically calculated areas.
 - Confirm ceiling height, preview in 2D/3D, and export/import a versioned JSON project.
+- Place doors, windows and open passages on selected room walls; edit widths/heights and window sill heights, and preview actual wall apertures in 3D.
 - Use an explicitly labelled demo or work manually without an API key.
 
-AI results are drafts and require review. Ordinary interior photographs cannot reconstruct a floor plan in this milestone. Openings, furniture, shared-wall topology, and accurate architectural reconstruction are deferred. The current 3D view shows simplified room volumes.
+AI results are drafts and require review. Ordinary interior photographs cannot reconstruct a floor plan in this milestone. Cloud recognition currently returns rooms only; openings are placed manually. Furniture, a full shared-wall graph, and accurate architectural reconstruction are deferred. The current 3D view uses stylized room wall faces with actual apertures.
+
+## Doors, windows and project versions
+
+After setting scale and ceiling height, select a room, choose **Add door**, **Add window** or **Add passage**, and click its wall. The view returns to the plan for placement. Choose an existing opening on the plan or in its selector to edit dimensions or delete it. New manual dimensions are editable defaults, not measurements inferred from the source.
+
+A nearby opposite wall face can be linked to the same opening so both faces are cut in 3D. Resizing keeps that connection and fails if the existing second face no longer fits. Per-room wall faces and wall thickness remain a simplified preview; verify matching and position against the image. Door leaves are shown partly open with an illustrative inward swing; hinge side and actual opening direction are not encoded. No device command is sent.
+
+Exports use project version 2 with an `openings` list. Version 1 files import through an explicit migration with an empty list; unsupported versions and invalid references are rejected. Clearing scale or ceiling preserves the existing openings and disables 3D. Deleting a room removes its attached openings. Recognition replaces room geometry and produces a new room-only draft, so export any existing opening work before recognizing again.
 
 The interface supports English and Russian, defaulting to the browser language (Russian when applicable, English otherwise). Choose Light, Dark, or System appearance. Only these preferences are stored locally; project autosave is not implemented. Project documentation is maintained in English.
 
@@ -116,5 +125,7 @@ This milestone is a local development environment. The API binds to loopback; au
 - [Agent instructions](AGENTS.md)
 - [MVP specification](docs/superpowers/specs/2026-10-17-plan-import-design.md)
 - [Implementation plan](docs/superpowers/plans/2026-10-17-plan-import.md)
+- [Openings specification](docs/superpowers/specs/2026-10-17-openings-design.md)
+- [Openings implementation plan](docs/superpowers/plans/2026-10-17-openings.md)
 
 Reference: [House Control](https://github.com/0xProbabillity/house-control). No source code from the reference has been copied into this version.

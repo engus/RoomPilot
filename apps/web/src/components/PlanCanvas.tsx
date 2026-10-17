@@ -1,5 +1,5 @@
-import { useRef, useState, type PointerEvent } from 'react';
-import { type Point, type Project, type Room, validatePolygon } from '@roompilot/domain';
+import { useRef, useState } from 'react';
+import { getOpeningSegment, type OpeningKind, type Point, type Project, type Room, validatePolygon } from '@roompilot/domain';
 import { useInterface } from '../i18n';
 
 export type EditorMode = 'select' | 'draw' | 'calibrate';
@@ -8,14 +8,17 @@ type Props = {
   project: Project; selectedId: string | null; mode: EditorMode; draft: Point[]; calibrationPoints: Point[];
   onSelect: (id: string) => void; onPoint: (point: Point) => void;
   onEdit: (room: Room) => void; onError: (message: string) => void;
+  placementKind?: OpeningKind | null; onWallClick?: (roomId: string, edgeIndex: number, positionT: number) => void;
+  selectedOpeningId?: string | null; onOpeningSelect?: (id: string) => void;
 };
 
-export default function PlanCanvas({ project, selectedId, mode, draft, calibrationPoints, onSelect, onPoint, onEdit, onError }: Props) {
-  const { t } = useInterface();
+export default function PlanCanvas({ project, selectedId, mode, draft, calibrationPoints, onSelect, onPoint, onEdit, onError,
+  placementKind = null, onWallClick, selectedOpeningId = null, onOpeningSelect }: Props) {
+  const { t, theme } = useInterface();
   const svgRef = useRef<SVGSVGElement>(null);
   const drag = useRef<{ room: Room; vertex: number } | null>(null);
   const [draggedRoom, setDraggedRoom] = useState<Room | null>(null);
-  const toPoint = (event: PointerEvent<SVGElement>): Point => {
+  const toPoint = (event: { clientX: number; clientY: number }): Point => {
     const svg = svgRef.current!;
     const point = svg.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
     const matrix = svg.getScreenCTM();
@@ -32,6 +35,9 @@ export default function PlanCanvas({ project, selectedId, mode, draft, calibrati
   const points = (items: Point[]) => items.map(point => `${point.x},${point.y}`).join(' ');
   const markerSize = Math.max(project.source.width, project.source.height) / 115;
   const calibration = calibrationPoints.length ? calibrationPoints : project.calibration?.points ?? [];
+  const activeRoom = draggedRoom ?? project.rooms.find(room => room.id === selectedId);
+  const displayedProject = draggedRoom ? { ...project, rooms: project.rooms.map(room => room.id === draggedRoom.id ? draggedRoom : room) } : project;
+  const placing = mode === 'select' && placementKind !== null;
   return <svg ref={svgRef} className={`plan-svg mode-${mode}`} data-testid="plan-canvas" aria-label={t('planCanvas')} role="img"
     viewBox={`0 0 ${project.source.width} ${project.source.height}`}
     onPointerDown={event => { if (mode !== 'select') { event.preventDefault(); onPoint(toPoint(event)); } }}
@@ -46,14 +52,62 @@ export default function PlanCanvas({ project, selectedId, mode, draft, calibrati
         <polygon points={points(room.polygon)} fill={ROOM_COLORS[index % ROOM_COLORS.length]} fillOpacity={active ? .42 : .22}
           stroke={active ? '#224e40' : '#61756b'} strokeWidth={active ? 3 : 1.5} vectorEffect="non-scaling-stroke"
           role="button" tabIndex={0} aria-label={t('selectRoom', { name: room.name })}
-          onClick={() => { if (mode === 'select') onSelect(room.id); }}
-          onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(room.id); } }} />
+          onClick={() => { if (mode === 'select' && !placing) onSelect(room.id); }}
+          onKeyDown={event => { if (mode === 'select' && !placing && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onSelect(room.id); } }} />
         <text className="room-label" x={center.x} y={center.y} textAnchor="middle" fontSize={markerSize * 1.65} pointerEvents="none">{room.name}</text>
-        {active && mode === 'select' && room.polygon.map((point, vertex) => <circle key={vertex} cx={point.x} cy={point.y} r={markerSize * .6}
-          className="vertex" fill="#fffefa" stroke="#224e40" strokeWidth={2} vectorEffect="non-scaling-stroke"
-          onPointerDown={event => { event.stopPropagation(); event.preventDefault(); drag.current = { room, vertex }; event.currentTarget.setPointerCapture(event.pointerId); }} />)}
       </g>;
     })}
+    {placing && project.calibration && activeRoom && onWallClick && <g>
+      {activeRoom.polygon.map((a, edgeIndex) => {
+        const b = activeRoom.polygon[(edgeIndex + 1) % activeRoom.polygon.length];
+        return <line key={edgeIndex} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={18}
+          vectorEffect="non-scaling-stroke" pointerEvents="stroke" style={{ cursor: 'crosshair' }}
+          data-testid="opening-wall-hit" data-room-id={activeRoom.id} data-edge-index={edgeIndex}
+          onPointerDown={event => { event.stopPropagation(); event.preventDefault(); }}
+          onClick={event => {
+            event.stopPropagation(); event.preventDefault();
+            const point = toPoint(event), dx = b.x - a.x, dy = b.y - a.y;
+            const position = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx * dx + dy * dy)));
+            onWallClick(activeRoom.id, edgeIndex, position);
+          }} />;
+      })}
+    </g>}
+    {project.openings.map((opening, index) => {
+      const [a, b] = getOpeningSegment(displayedProject, opening.spans[0]);
+      const width = Math.hypot(b.x - a.x, b.y - a.y);
+      const selected = selectedOpeningId === opening.id;
+      const label = t(opening.kind === 'door' ? 'openingDoor' : opening.kind === 'window' ? 'openingWindow' : 'openingPassage');
+      const room = displayedProject.rooms.find(room => room.id === opening.spans[0].roomId)!;
+      const winding = Math.sign(room.polygon.reduce((area, point, pointIndex) => {
+        const next = room.polygon[(pointIndex + 1) % room.polygon.length];
+        return area + point.x * next.y - next.x * point.y;
+      }, 0));
+      const color = selected ? '#d77b24' : opening.kind === 'window' ? '#267eac' : opening.kind === 'passage' ? '#7e5ca3' : '#705137';
+      return <g key={opening.id} data-testid="opening-symbol" data-opening-id={opening.id} data-opening-kind={opening.kind}
+        role="button" tabIndex={mode === 'select' && !placing && onOpeningSelect ? 0 : -1} aria-label={`${label} ${index + 1}`}
+        pointerEvents={mode === 'select' && !placing ? 'auto' : 'none'}
+        onPointerDown={event => { if (mode === 'select') event.stopPropagation(); }}
+        onClick={event => { if (mode === 'select' && !placing) { event.stopPropagation(); onOpeningSelect?.(opening.id); } }}
+        onKeyDown={event => { if (mode === 'select' && !placing && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); event.stopPropagation(); onOpeningSelect?.(opening.id); } }}>
+        <title>{label} {index + 1}</title>
+        <g transform={`translate(${a.x} ${a.y}) rotate(${Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI})`}>
+          <line x1={0} y1={0} x2={width} y2={0} stroke={theme === 'dark' ? '#1b2621' : '#fffefa'} strokeWidth={selected ? 11 : 8} vectorEffect="non-scaling-stroke" />
+          {opening.kind === 'window' ? <g stroke={color} strokeWidth={selected ? 3 : 2} vectorEffect="non-scaling-stroke">
+            <line x1={0} y1={-markerSize * .3} x2={width} y2={-markerSize * .3} vectorEffect="non-scaling-stroke" />
+            <line x1={0} y1={markerSize * .3} x2={width} y2={markerSize * .3} vectorEffect="non-scaling-stroke" />
+          </g> : opening.kind === 'door' ? <g transform={`scale(1 ${winding})`} stroke={color} fill="none" strokeWidth={selected ? 3 : 2}>
+            <line x1={0} y1={0} x2={0} y2={width} vectorEffect="non-scaling-stroke" />
+            <path d={`M ${width} 0 A ${width} ${width} 0 0 1 0 ${width}`} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+          </g> : <line x1={0} y1={0} x2={width} y2={0} stroke={color} strokeWidth={selected ? 4 : 3} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />}
+          <line x1={0} y1={-markerSize * .6} x2={0} y2={markerSize * .6} stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          <line x1={width} y1={-markerSize * .6} x2={width} y2={markerSize * .6} stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          <line x1={0} y1={0} x2={width} y2={0} stroke="transparent" strokeWidth={18} vectorEffect="non-scaling-stroke" />
+        </g>
+      </g>;
+    })}
+    {activeRoom && mode === 'select' && !placing && activeRoom.polygon.map((point, vertex) => <circle key={vertex} cx={point.x} cy={point.y} r={markerSize * .6}
+      className="vertex" fill="#fffefa" stroke="#224e40" strokeWidth={2} vectorEffect="non-scaling-stroke"
+      onPointerDown={event => { event.stopPropagation(); event.preventDefault(); drag.current = { room: activeRoom, vertex }; event.currentTarget.setPointerCapture(event.pointerId); }} />)}
     {draft.length > 0 && <g pointerEvents="none"><polyline points={points(draft)} fill="rgba(34,78,64,.15)" stroke="#224e40" strokeWidth={2} strokeDasharray="7 4" vectorEffect="non-scaling-stroke" />
       {draft.map((point, i) => <circle key={i} cx={point.x} cy={point.y} r={markerSize / 2} fill="#224e40" />)}</g>}
     {calibration.length > 0 && <g pointerEvents="none">

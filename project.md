@@ -20,8 +20,9 @@ Documentation is written in English. The interface supports English and Russian;
 6. Request ceiling height when absent. A detected value also requires user confirmation and remains editable.
 7. Offer 2D and simplified 3D previews, plus versioned JSON project export/import. Physical scale and confirmed ceiling height are prerequisites for 3D.
 8. Report missing credentials or provider failure explicitly. Demo mode is a separate, labelled action.
+9. Add door, window and passage objects on room edges, edit their dimensions, and preview actual wall apertures. Version 1 imports migrate to version 2; new exports preserve openings.
 
-Interior-photo reconstruction, furniture, doors/windows, HA control, multiple floors, native/PWA packaging, and architectural accuracy are outside this first iteration.
+Interior-photo reconstruction, furniture, HA control, multiple floors, native/PWA packaging, and architectural accuracy are outside this first iteration. The owner subsequently authorized openings: these now have manual placement and 2D/3D rendering. Automatic provider recognition of openings remains unimplemented.
 
 ## Architecture
 
@@ -52,7 +53,7 @@ Recognition supports an explicit OpenAI / Gemini / OpenRouter selection with no 
 ## Next milestones
 
 - Server-side project library, SQLite, and backups.
-- Shared walls, openings, and a more complete geometry editor.
+- A full shared-wall graph, automatic opening recognition, and a more complete geometry editor. The current preview keeps room-face walls and links one aperture to up to two faces.
 - HA authentication, live entity state, and object-to-entity placement.
 - Furnishing a selected room from photos and interchangeable AI providers.
 - Docker arm64/x64, HA app / Ingress, and PWA delivery.
