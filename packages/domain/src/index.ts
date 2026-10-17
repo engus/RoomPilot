@@ -6,6 +6,7 @@ export * from './recognized-openings';
 export * from './zones';
 export * from './apartment-brief';
 export * from './solid-walls';
+export * from './environment';
 
 import { polygonArea, type Point } from './geometry';
 import { ProjectSchema, type Project, type Room, type Source, type Recognition } from './schema';

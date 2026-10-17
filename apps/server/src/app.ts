@@ -3,13 +3,14 @@ import multipart from '@fastify/multipart';
 import sharp from 'sharp';
 import { ApartmentBriefOrNullSchema, applyDetectedOpenings, createProject, ProjectSchema, RecognitionSchema, type ApartmentBrief, type Source } from '@roompilot/domain';
 import { credentialsFor, isProviderId, providerConfigured, PROVIDER_IDS, readConfig, recognizeImage, recognizeOpenings, RecognitionError, type ProviderId, type RecognitionConfig, type RecognitionProvider } from './recognition';
+import { calculateSolarEnvironment, readSolarConfig, type SolarConfig } from './solar-environment';
 
 const MAX_UPLOAD = 10 * 1024 * 1024;
 const MAX_PIXELS = 20_000_000;
 
-export interface BuildAppOptions { provider?: RecognitionProvider; providers?: Partial<Record<ProviderId, RecognitionProvider>>; config?: RecognitionConfig }
+export interface BuildAppOptions { provider?: RecognitionProvider; providers?: Partial<Record<ProviderId, RecognitionProvider>>; config?: RecognitionConfig; solarConfig?: SolarConfig | null }
 
-export function buildApp({ provider, providers = {}, config = readConfig() }: BuildAppOptions = {}) {
+export function buildApp({ provider, providers = {}, config = readConfig(), solarConfig = readSolarConfig() }: BuildAppOptions = {}) {
   const app = Fastify({ logger: false, bodyLimit: MAX_UPLOAD + 16_384, requestTimeout: 60_000 });
   app.register(multipart, { limits: { fileSize: MAX_UPLOAD, files: 1, fields: 1, fieldSize: 2048, parts: 2, headerPairs: 100 } });
   const overrides = { ...providers, ...(provider ? { openai: provider } : {}) };
@@ -30,6 +31,11 @@ export function buildApp({ provider, providers = {}, config = readConfig() }: Bu
     status: 'ok', recognitionConfigured: configured(defaultProvider), defaultProvider,
     providers: PROVIDER_IDS.map(id => ({ id, configured: configured(id), model: credentialsFor(config, id).model?.trim() || null })),
   }));
+  app.get('/api/environment', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    if ((request.headers.origin && !allowedOrigins.has(request.headers.origin)) || request.headers['sec-fetch-site'] === 'cross-site') return reply.code(403).send({ configured: false });
+    return solarConfig ? calculateSolarEnvironment(solarConfig) : { configured: false };
+  });
 
   app.post<{ Querystring: { provider?: string } }>('/api/recognize', { onRequest: async (request, reply) => {
     if (!request.headers.origin || !allowedOrigins.has(request.headers.origin)) return reply.code(403).send({ error: 'Распознавание доступно только из локального интерфейса RoomPilot.' });

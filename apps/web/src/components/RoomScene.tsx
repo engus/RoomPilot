@@ -7,6 +7,9 @@ import { ROOM_COLORS } from './PlanCanvas';
 import OpeningMeshes from './OpeningMeshes';
 import ZoneMeshes from './ZoneMeshes';
 import SolidWalls from './SolidWalls';
+import SceneEnvironment from './SceneEnvironment';
+import { Sun, Moon, Clock3 } from 'lucide-react';
+import { useOutdoorEnvironment } from '../use-outdoor-environment';
 import { useInterface } from '../i18n';
 
 type SceneBounds = [number, number, number, number, number, number];
@@ -64,7 +67,8 @@ function RoomVolume({ room, scale, origin, color, selected, onSelect }: {
 }
 
 export default function RoomScene({ project, selectedId, onSelect, selectedZoneId = null, onZoneSelect = () => {} }: { project: Project; selectedId: string | null; onSelect: (id: string) => void; selectedZoneId?: string | null; onZoneSelect?: (id: string) => void }) {
-  const { t, theme } = useInterface();
+  const { t } = useInterface();
+  const { mode, changeMode, solar, pending } = useOutdoorEnvironment();
   const wallModel = useMemo(() => buildSolidWallModel(project), [project.rooms, project.openings, project.calibration, project.ceilingHeightM]);
   const scale = project.calibration!.metresPerPixel;
   const width = project.source.width * scale, depth = project.source.height * scale;
@@ -77,16 +81,22 @@ export default function RoomScene({ project, selectedId, onSelect, selectedZoneI
     Math.max(...vertices.map(point => point.x * scale)) - origin[0] + WALL_CAP_REACH_M, project.ceilingHeightM!,
     Math.max(...vertices.map(point => point.y * scale)) - origin[1] + WALL_CAP_REACH_M,
   ] : [-width / 2, 0, -depth / 2, width / 2, project.ceilingHeightM!, depth / 2];
-  return <div className="scene-wrapper" data-testid="scene-3d" aria-label={t('sceneLabel')}>
+  return <div className="scene-wrapper" data-testid="scene-3d" data-outdoor-mode={mode} data-outdoor-phase={mode === 'auto' ? solar?.phase ?? 'day' : mode} aria-label={t('sceneLabel')}>
     <Canvas shadows camera={{ position: [size * .65, size * .85, size * .9], fov: 42, near: .1, far: size * 20 }} gl={{ antialias: true }}>
-      <color attach="background" args={[theme === 'dark' ? '#1b2621' : '#ebece5']} /><ambientLight intensity={1.5} /><directionalLight position={[8, 18, 10]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
+      <SceneEnvironment mode={mode} solar={solar} size={size} />
         <SolidWalls model={wallModel} project={project} origin={origin} onSelect={onSelect} />
         {project.rooms.map((room, i) => <RoomVolume key={room.id} room={room} scale={scale} origin={origin} color={ROOM_COLORS[i % ROOM_COLORS.length]} selected={selectedId === room.id} onSelect={() => onSelect(room.id)} />)}
         <OpeningMeshes project={project} placements={wallModel.openings} origin={origin} onRoomSelect={onSelect} />
         <ZoneMeshes project={project} origin={origin} selectedId={selectedZoneId} onSelect={onZoneSelect} />
-        <gridHelper position={[0, -.16, 0]} args={[size * 3, Math.min(120, Math.ceil(size * 3)), theme === 'dark' ? '#52695a' : '#aab4a2', theme === 'dark' ? '#36483b' : '#c1c7b9']} />
         <CameraControls bounds={bounds} />
     </Canvas>
+    <div className="scene-environment-controls" role="group" aria-label={t('outdoorTitle')}>
+      <span>{t('outdoorTitle')}</span><div>
+        <button aria-pressed={mode === 'day'} onClick={() => changeMode('day')}><Sun size={14} />{t('outdoorDay')}</button>
+        <button aria-pressed={mode === 'night'} onClick={() => changeMode('night')}><Moon size={14} />{t('outdoorNight')}</button>
+        <button aria-pressed={mode === 'auto'} disabled={!solar && mode !== 'auto'} onClick={() => changeMode('auto')}><Clock3 size={14} />{t('outdoorAuto')}</button>
+      </div><small>{mode === 'auto' ? pending ? t('outdoorChecking') : solar ? t(solar.phase === 'day' ? 'outdoorAutoDay' : solar.phase === 'twilight' ? 'outdoorAutoTwilight' : 'outdoorAutoNight') : t('outdoorFallback') : t('outdoorManual')}</small>
+    </div>
     <span className="scene-hint">{t('sceneHint')}</span>
   </div>;
 }

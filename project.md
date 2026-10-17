@@ -2,7 +2,13 @@
 
 RoomPilot is a free application for creating an interactive 3D apartment map and controlling Home Assistant devices. The owner selected the name RoomPilot and created https://github.com/engus/RoomPilot. The intended distribution is open source; the owner has not selected a license yet.
 
-## Product
+## Current apartment-first milestone
+
+The owner redirected work from a general apartment editor to a detailed, recognizable dollhouse of their own home. Start with the existing kitchen/living/corridor shell, add furniture, fixtures, colors and characteristic details from owner-supplied photographs, then connect real Home Assistant entities. After that, document how another user can repeat the approach. Keep the existing editor as supporting tooling; further editor expansion is not the current priority. Assisted modeling from photos is distinct from unattended interior-photo reconstruction.
+
+Outdoor ambience now supports manual Day/Night and optional Auto sunlight. The local server computes the current sun position from private configuration and an explicit plan orientation. The user confirmed the balcony-facing top of their current plan is east; exact location/address are private runtime data and must not enter this document or Git. Weather, neighboring-building shadows and actual indoor lighting state require later data/integration.
+
+## Existing floor-plan workflow
 
 Users upload a floor plan, review room outlines and names, inspect printed and computed areas, and supply missing scale and ceiling height. The application builds a simplified 3D model. A later milestone will let users place HA entities on the model and control their devices directly.
 
@@ -26,7 +32,7 @@ Documentation is written in English. The interface supports English and Russian;
 10. Divide a physical room into named wall-free zones; edit their polygons, inspect calibrated areas and select them in 2D/3D. Preserve physical room walls and door/window attachments.
 11. Collect optional habitable-room counts, approximate area with balcony inclusion, bathroom count/layout and ancillary-space counts before recognition. Treat them as hints, independently of physical polygons and calibration. Preserve answers in full and openings-only recognition and project exports.
 
-Interior-photo reconstruction, furniture, HA control, multiple floors, native/PWA packaging, and architectural accuracy are outside this first iteration. The owner subsequently authorized openings: these now have manual placement and 2D/3D rendering. OpenRouter now recognizes doors and windows alongside rooms, or adds them to an existing plan without replacing its geometry. Other providers remain room-only.
+Unattended interior-photo reconstruction, multiple floors, native/PWA packaging, and architectural accuracy are outside the first iteration. Furniture from owner photos and HA control are now the next apartment-first milestone described above. The owner previously authorized openings: these now have manual placement and 2D/3D rendering. OpenRouter now recognizes doors and windows alongside rooms, or adds them to an existing plan without replacing its geometry. Other providers remain room-only.
 
 The public demo uses the owner-authorized assisted apartment geometry, redrawn in code, with their confirmed room names: balcony, parents’ bedroom, children’s bedroom, combined bathroom/WC, storage, and the shared kitchen/living/corridor space. The three functions in the shared space are separate zones. Its apartment brief records three habitable rooms and approximately 58 m² excluding the balcony, one combined bathroom/WC, one kitchen, one balcony and one storage room. Printed areas sum to 58.29 m² excluding the balcony and 60.67 m² including it; approximate context does not change these values. The original floor-plan pixels and annotated image remain private. Demo calibration and a 2.5 m ceiling are supplied for immediate 3D.
 
@@ -58,6 +64,7 @@ Recognition supports an explicit OpenAI / Gemini / OpenRouter selection with no 
 
 ## Next milestones
 
+- Furnish the owner's kitchen/living/corridor from photographs and bind real HA lighting/sensor entities; document repeatable scene-building and configuration steps.
 - Server-side project library, SQLite, and backups.
 - A full shared-wall graph, better opening detection quality, and a more complete geometry editor. The current preview unions nearby boundary strips into solid walls and links one aperture to up to two compatible faces; it is still a stylized presentation rather than a CAD wall graph.
 - HA authentication, live entity state, and object-to-entity placement.

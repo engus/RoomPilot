@@ -2,7 +2,7 @@
 
 A 3D home dashboard for Home Assistant, with a visual floor-plan editor and optional AI-assisted setup.
 
-**Current milestone:** local floor-plan import and review. Home Assistant device control, furnishing from interior photographs, and home-server packaging are planned. HA control is not implemented yet. The project is intended to be free and open source; its license has not been selected by the owner yet.
+**Current focus:** a recognizable interactive dollhouse of the owner's apartment, starting with the kitchen, living area and corridor. The floor-plan editor remains supporting tooling. Furniture and fixtures from owner photographs and Home Assistant device control are next; HA control is not implemented yet. The project is intended to be free and open source; its license has not been selected by the owner yet.
 
 ## Milestone 1
 - Import a PNG/JPEG floor plan, including a photograph of a paper plan.
@@ -45,6 +45,22 @@ The optional **About the apartment** form distinguishes habitable rooms (bedroom
 Blank numbers mean unknown; zero is an explicit count. Approximate area and balcony inclusion are context only and never establish scale or reshape geometry. Answers are sent with the image only on explicit recognition, to the selected provider; openings-only detection also receives and preserves them. Editing the form makes no provider call. Invalid answers must be corrected or cleared before recognition/export, and edits during recognition prevent the old result from replacing newer work.
 
 The demo contains three habitable rooms, approximately 58 m² excluding its balcony, one combined bathroom/WC, one kitchen, one balcony and one storage room. Printed physical areas remain unchanged: 58.29 m² without the balcony and 60.67 m² with it. The questionnaire supplies recognition hints; it does not guarantee complete or accurate extraction.
+
+## Outdoor day, night and sunlight
+
+The 3D viewer has **Day**, **Night** and **Auto** controls, independent of the interface's Light/Dark/System appearance. Manual modes change the sky, ground and scene lighting locally without sending a request on each toggle. The choice persists as a browser preference, outside the project export. Room/zone selection, camera orbit and source geometry stay intact. Night uses cool artistic fill so the model remains readable; indoor fixtures are not automatically switched on and HA commands are not sent.
+
+For **Auto**, configure these private values in the ignored root `.env`, then restart the server:
+
+```dotenv
+SUN_LATITUDE=your-latitude
+SUN_LONGITUDE=your-longitude
+PLAN_UP_BEARING_DEG=your-plan-up-bearing
+```
+
+All three values are required. Latitude is −90..90, longitude −180..180; bearing is 0..<360 degrees clockwise from north (0 means the top of the plan faces north, 90 east). This installation-level orientation applies to all viewed projects; it is not per-project metadata. Never publish the real values or a home address. No browser geolocation or provider key is needed.
+
+The server calculates solar elevation and direction locally using [SunCalc 2.1.1](https://github.com/mourner/suncalc). Its API returns only calculated lighting data and a timestamp, with no raw location/bearing. The viewer checks availability when opened and refreshes once a minute in Auto, with a five-second request deadline. Missing, invalid or failed data shows **Auto unavailable · showing Day**; manual modes remain usable. Auto distinguishes daylight, civil twilight and night using the current UTC instant, so the server's display timezone does not change the sun calculation. Weather, neighboring structures, true moon position and architectural daylight simulation are outside this preview.
 
 The interface supports English and Russian, defaulting to the browser language (Russian when applicable, English otherwise). Choose Light, Dark, or System appearance. Only these preferences are stored locally; project autosave is not implemented. Project documentation is maintained in English.
 

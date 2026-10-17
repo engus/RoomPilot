@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { Path, Shape } from 'three';
 import type { Point, Project, SolidWallModel, WallPolygon } from '@roompilot/domain';
-import { useInterface } from '../i18n';
 
 const BASE_EXTRUSION = { depth: .14, bevelEnabled: false, steps: 1 };
 
@@ -17,7 +16,6 @@ function shapeFromPolygon(polygon: WallPolygon, origin: [number, number]) {
 export default function SolidWalls({ model, project, origin, onSelect }: {
   model: SolidWallModel; project: Project; origin: [number, number]; onSelect: (id: string) => void;
 }) {
-  const { theme } = useInterface();
   const [originX, originY] = origin;
   const layers = useMemo(() => model.layers.map(layer => ({ ...layer, shapes: layer.polygons.map(polygon => shapeFromPolygon(polygon, [originX, originY])), extrusion: { depth: layer.topM - layer.bottomM, bevelEnabled: false, steps: 1 } })), [model, originX, originY]);
   const base = useMemo(() => model.base.map(polygon => shapeFromPolygon(polygon, [originX, originY])), [model, originX, originY]);
@@ -36,12 +34,12 @@ export default function SolidWalls({ model, project, origin, onSelect }: {
   return <group>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -.14, 0]} receiveShadow castShadow>
       <extrudeGeometry args={[base, BASE_EXTRUSION]} />
-      <meshStandardMaterial color={theme === 'dark' ? '#69766b' : '#c9c0b0'} roughness={.95} />
+      <meshStandardMaterial color="#c9c0b0" roughness={.95} />
     </mesh>
     {layers.map((layer, i) => <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[0, layer.bottomM, 0]} castShadow receiveShadow
       onClick={event => { event.stopPropagation(); selectNearest({ x: event.point.x + originX, y: event.point.z + originY }); }}>
       <extrudeGeometry args={[layer.shapes, layer.extrusion]} />
-      <meshStandardMaterial color={theme === 'dark' ? '#c5c8b9' : '#f1e9d8'} roughness={.9} />
+      <meshStandardMaterial color="#f1e9d8" roughness={.9} />
     </mesh>)}
   </group>;
 }

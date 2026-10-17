@@ -1,6 +1,10 @@
 export type Language = 'en' | 'ru';
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type Theme = 'light' | 'dark';
+export type OutdoorMode = 'day' | 'night' | 'auto';
+export function resolveOutdoorMode(saved: string | null): OutdoorMode {
+  return saved === 'night' || saved === 'auto' ? saved : 'day';
+}
 export function resolveLanguage(saved: string | null, browserLanguage?: string): Language {
   if (saved === 'en' || saved === 'ru') return saved;
   return browserLanguage?.toLowerCase().split('-')[0] === 'ru' ? 'ru' : 'en';
