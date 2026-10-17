@@ -7,7 +7,7 @@ export interface ProviderCredentials { apiKey?: string; model?: string }
 export interface RecognitionConfig extends ProviderCredentials {
   defaultProvider?: ProviderId;
   gemini?: ProviderCredentials;
-  openrouter?: ProviderCredentials;
+  openrouter?: ProviderCredentials & { reasoning?: false };
   requestTimeoutMs?: number;
   frontendOrigin?: string;
 }
@@ -29,12 +29,14 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): RecognitionCon
   const requestedTimeout = Number(env.RECOGNITION_TIMEOUT_MS ?? 45_000);
   const defaultProvider = env.AI_PROVIDER?.trim() || 'openai';
   if (!isProviderId(defaultProvider)) throw new Error('AI_PROVIDER must be openai, gemini, or openrouter.');
+  const routerReasoning = env.OPENROUTER_REASONING?.trim() || 'default';
+  if (!['default', 'off'].includes(routerReasoning)) throw new Error('OPENROUTER_REASONING must be default or off.');
   return {
     defaultProvider,
     apiKey: env.OPENAI_API_KEY?.trim() || undefined,
     model: env.OPENAI_MODEL?.trim() || undefined,
     gemini: { apiKey: env.GEMINI_API_KEY?.trim() || undefined, model: env.GEMINI_MODEL?.trim() || undefined },
-    openrouter: { apiKey: env.OPENROUTER_API_KEY?.trim() || undefined, model: env.OPENROUTER_MODEL?.trim() || undefined },
+    openrouter: { apiKey: env.OPENROUTER_API_KEY?.trim() || undefined, model: env.OPENROUTER_MODEL?.trim() || undefined, reasoning: routerReasoning === 'off' ? false : undefined },
     requestTimeoutMs: Number.isFinite(requestedTimeout) ? Math.max(1000, Math.min(120_000, requestedTimeout)) : 45_000,
     frontendOrigin: env.FRONTEND_ORIGIN?.trim() || undefined,
   };
@@ -77,7 +79,7 @@ export async function recognizeImage(image: Source, config: RecognitionConfig, s
   const timeout = AbortSignal.timeout(config.requestTimeoutMs ?? 45_000);
   const cancellation = signal ? AbortSignal.any([signal, timeout]) : timeout;
   try {
-    const request = providerRequest(image, credentials, provider);
+    const request = providerRequest(image, credentials, provider, config.openrouter?.reasoning === false);
     const response = await fetch(request.url, { method: 'POST', redirect: 'error', signal: cancellation, headers: request.headers, body: JSON.stringify(request.body) });
     // Both successful and error responses are untrusted and bounded. Raw errors never leave the adapter.
     let result: unknown;
@@ -95,7 +97,7 @@ export async function recognizeImage(image: Source, config: RecognitionConfig, s
   }
 }
 
-function providerRequest(image: Source, credentials: ProviderCredentials, provider: ProviderId) {
+function providerRequest(image: Source, credentials: ProviderCredentials, provider: ProviderId, disableReasoning: boolean) {
   const authorization = { Authorization: `Bearer ${credentials.apiKey!.trim()}`, 'Content-Type': 'application/json' };
   const model = credentials.model!.trim();
   if (provider === 'gemini') {
@@ -120,6 +122,7 @@ function providerRequest(image: Source, credentials: ProviderCredentials, provid
     url: 'https://openrouter.ai/api/v1/chat/completions', headers: authorization,
     body: {
       model, max_tokens: 16_000, stream: false,
+      ...(disableReasoning ? { reasoning: { enabled: false } } : {}),
       messages: [{ role: 'system', content: instructions }, { role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: image.dataUrl } }] }],
       response_format: { type: 'json_schema', json_schema: { name: 'floor_plan_draft', strict: true, schema: recognitionJsonSchema } },
       provider: { require_parameters: true },

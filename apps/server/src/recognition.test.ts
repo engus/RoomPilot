@@ -37,8 +37,8 @@ it('cancels an oversized provider body before parsing it', async () => {
 });
 
 it('reads independent provider credentials without borrowing another provider key', () => {
-  const config = readConfig({ OPENAI_API_KEY: 'openai-key', OPENAI_MODEL: 'openai-model', GEMINI_API_KEY: ' google-key ', GEMINI_MODEL: 'gemini-model', OPENROUTER_API_KEY: 'router-key', OPENROUTER_MODEL: 'vision:free', AI_PROVIDER: 'gemini' });
-  expect(config).toMatchObject({ defaultProvider: 'gemini', gemini: { apiKey: 'google-key', model: 'gemini-model' }, openrouter: { apiKey: 'router-key', model: 'vision:free' } });
+  const config = readConfig({ OPENAI_API_KEY: 'openai-key', OPENAI_MODEL: 'openai-model', GEMINI_API_KEY: ' google-key ', GEMINI_MODEL: 'gemini-model', OPENROUTER_API_KEY: 'router-key', OPENROUTER_MODEL: 'vision:free', OPENROUTER_REASONING: 'off', AI_PROVIDER: 'gemini' });
+  expect(config).toMatchObject({ defaultProvider: 'gemini', gemini: { apiKey: 'google-key', model: 'gemini-model' }, openrouter: { apiKey: 'router-key', model: 'vision:free', reasoning: false } });
 });
 
 it.each(['gemini-3.8-flash', 'gemini-2.5-flash'])('sends Gemini inline image data and extracts only completed non-thinking output (%s)', async model => {
@@ -61,7 +61,7 @@ it.each(['gemini-3.8-flash', 'gemini-2.5-flash'])('sends Gemini inline image dat
   expect(await recognizeImage(image, { apiKey: 'wrong-key', model: 'wrong-model', gemini: { apiKey: 'google-key', model } }, undefined, 'gemini')).toEqual(recognition);
 });
 
-it('sends OpenRouter a fixed endpoint, its own key, image input and required structured output', async () => {
+it.each([undefined, false] as const)('sends OpenRouter its own key, image input and explicit reasoning preference (%s)', async reasoning => {
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
     expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
     expect(init.headers).toMatchObject({ Authorization: 'Bearer router-key' });
@@ -70,9 +70,11 @@ it('sends OpenRouter a fixed endpoint, its own key, image input and required str
     expect(sent.messages[1].content).toContainEqual({ type: 'image_url', image_url: { url: image.dataUrl } });
     expect(sent.response_format).toMatchObject({ type: 'json_schema', json_schema: { strict: true } });
     expect(sent.provider).toMatchObject({ require_parameters: true });
+    if (reasoning === false) expect(sent.reasoning).toEqual({ enabled: false });
+    else expect(sent).not.toHaveProperty('reasoning');
     return Response.json({ choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: JSON.stringify(recognition) } }] });
   });
-  expect(await recognizeImage(image, { openrouter: { apiKey: 'router-key', model: 'vision:free' } }, undefined, 'openrouter')).toEqual(recognition);
+  expect(await recognizeImage(image, { openrouter: { apiKey: 'router-key', model: 'vision:free', reasoning } }, undefined, 'openrouter')).toEqual(recognition);
 });
 
 it('rejects an unconfigured selection without calling any provider', async () => {
